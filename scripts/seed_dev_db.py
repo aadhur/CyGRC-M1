@@ -1,6 +1,7 @@
-# Day 1 connection test: Verifies laptop can connect to PostgreSQL. (We will add automatic framework importing later)
+# Connection test: Verifies laptop can connect to PostgreSQL. (We will add automatic framework importing later)
 
 import sys
+
 import psycopg2  # to send queries to postgreSQL databases
 
 
@@ -24,7 +25,7 @@ def verify_connections():
         print(f"PostgreSQL Connection: OK (Version: {db_version[0]})")
         cursor.close()
         conn.close()
-    except Exception as e:
+    except psycopg2.Error as e:
         print(f"PostgreSQL Connection: FAILED ({e})")
         sys.exit(1)
 
