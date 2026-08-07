@@ -21,7 +21,7 @@ jobs:
 
       - name: Run Python Linters (Ruff) #checks for code errors and formatting
         run: |
-          pip install ruff
+          pip install ruff==0.16.1
           ruff check .
           ruff format --check .  
 
