@@ -1,7 +1,7 @@
-# CyGRC-M1 DOCUMENTATION
+# CyGRC-M1 
 Documentation for setting up, developing, and contributing to the CyGRC platform.
 
-## REPO LAYOUT
+## REPOSITORY LAYOUT
 
 ```text
 CyGRC-M1/
@@ -107,14 +107,14 @@ python ../../scripts/seed_dev_db.py
 ```
 If you see **`PostgreSQL Connection: OK`**, then the seeder works. 
 
-## Additional Information
+## ADDITIONAL INFORMATION
 - Documentation in Code: Source files contain comments explaining module execution and architecture choices.
 - Branch Protection Rules (Only on `main`)
   - Require a Pull Request before merging (direct pushes to main are blocked).
   - Require the `code-quality` and `security-scan` status checks to pass before merging. --> CI Pipeline runs
   - Require approval before merging (set to 1 approval for now).
 
-## Contributing Guide
+## CONTRIBUTING GUIDE
 
 ### 1. Create a Feature Branch
 
