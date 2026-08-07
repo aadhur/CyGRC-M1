@@ -1,0 +1,70 @@
+# Starts local development backend: PostgreSQL (Database), Valkey (Cache), Keycloak (Auth), and MinIO (File Storage) 
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cygrc-postgres
+    environment:
+      POSTGRES_USER: grc_user
+      POSTGRES_PASSWORD: grc_local_password_123
+      POSTGRES_DB: grc_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8.1.8-alpine
+    container_name: cygrc-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkeydata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.0
+    container_name: cygrc-auth
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_password_123
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/grc_platform
+      KC_DB_USERNAME: grc_user
+      KC_DB_PASSWORD: grc_local_password_123
+    command: start-dev --http-port 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: cygrc-storage
+    ports:
+      - "9000:9000" #S3 API port
+      - "9001:9001" #Web console UI port
+    environment:
+      MINIO_ROOT_USER: minio_local_admin
+      MINIO_ROOT_PASSWORD: minio_local_password_123
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  valkeydata:
+  miniodata:
+

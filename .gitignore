@@ -1,0 +1,22 @@
+# Python virtual env
+venv/
+env/
+.venv/
+
+# Python caching
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local database volumes 
+pgdata/
+valkeydata/
+miniodata/
+# Next.js build directories & dependencies
+node_modules/
+.next/
+out/
+
+# Local configuration secrets
+.env
+.env.local
