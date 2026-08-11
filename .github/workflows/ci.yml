@@ -6,47 +6,52 @@ on:
   push:
     branches: [ main ]   # Runs when changes are merged into main
 
+# Global permissions
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   #J1:  Check code quality and scan for leaked passwords
   code-quality:
-    runs-on: ubuntu-latest #opens a clean Linux machine in the cloud
+    runs-on: ubuntu-latest # opens a clean Linux machine in the cloud
     steps:
       - name: Checkout Code Base
-        uses: actions/checkout@v4 #downloads repo's code onto cloud machine
+        uses: actions/checkout@v6 #downloads repo's code onto cloud machine
         with:
           fetch-depth: 0
 
       - name: Set up Python Environment
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12' #python version used
+          python-version: '3.12' # python version used
 
-      - name: Run Python Linters (Ruff) #checks for code errors and formatting
+      - name: Run Python Linters (Ruff) # checks for code errors and formatting
         run: |
           pip install ruff==0.16.1
           ruff check .
           ruff format --check .  
 
       - name: Scan for Hardcoded Secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} #temporary pass generated
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub-generated token for API access
 
   #J2: Scan for security bugs
   security-scan:
     runs-on: ubuntu-latest
-    needs: code-quality #only runs if J1 passes
+    needs: code-quality # only runs if J1 passes
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Run Trivy Vulnerability Scan #runs Trivy 
+      - name: Run Trivy Vulnerability Scan # runs Trivy 
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'table'
-          severity: 'CRITICAL,HIGH' #blocks merge if any high/critical bug is found
+          severity: 'CRITICAL,HIGH' # blocks merge if any high/critical bug is found
 
