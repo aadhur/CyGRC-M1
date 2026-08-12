@@ -1,9 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
+To get started with frontend setup run:
+```bash
+npm install
+```
+To verify the setup is installed clearly across systems run:
+```bash 
+npm ci
+```
+This will help with catching dependencies realated issues early on
 
-First, run the development server:
-
+To run the development server, run:
 ```bash
 npm run dev
 # or
