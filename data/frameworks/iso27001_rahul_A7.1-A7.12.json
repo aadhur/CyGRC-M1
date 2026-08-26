@@ -1,0 +1,62 @@
+[
+  {
+    "code": "A.7.1",
+    "title": "Physical security perimeter",
+    "description": "Establish physical security measures and boundaries to prevent unauthorized individuals from gaining physical access to organizational property and assets."
+  },
+  {
+    "code": "A.7.2",
+    "title": "Physical entry controls",
+    "description": "Protect secure areas through defined access points and effective physical entry control mechanisms."
+  },
+  {
+    "code": "A.7.3",
+    "title": "Securing offices, rooms and facilities",
+    "description": "Prevent unauthorized physical access, damage, and interference affecting organizational information and associated assets."
+  },
+  {
+    "code": "A.7.4",
+    "title": "Physical security monitoring",
+    "description": "Use physical security measures and monitoring to protect offices and information processing facilities from unauthorized access and security incidents."
+  },
+  {
+    "code": "A.7.5",
+    "title": "Protecting against physical and environmental threats",
+    "description": "Identify and implement measures to prevent or reduce the impact of physical and environmental threats affecting information and associated assets."
+  },
+  {
+    "code": "A.7.6",
+    "title": "Working in secure areas",
+    "description": "Protect information within secure areas from damage, unauthorized access, and unauthorized interference by personnel working in those areas."
+  },
+  {
+    "code": "A.7.7",
+    "title": "Clear desk and clear screen",
+    "description": "Reduce the risks of unauthorized access, loss, or damage to information displayed on screens or stored on desks during and outside normal working hours."
+  },
+  {
+    "code": "A.7.8",
+    "title": "Equipment siting and protection",
+    "description": "Reduce risks to equipment and information assets arising from physical and environmental threats, unauthorized access, and damage."
+  },
+  {
+    "code": "A.7.9",
+    "title": "Security of assets off-premises",
+    "description": "Protect organizational equipment and information assets when they are located or used outside the organization's premises."
+  },
+  {
+    "code": "A.7.10",
+    "title": "Storage media",
+    "description": "Protect storage media throughout its lifecycle against unauthorized access, misuse, damage, or compromise."
+  },
+  {
+    "code": "A.7.11",
+    "title": "Supporting utilities",
+    "description": "Protect operations against loss or interruption caused by failures or disruptions to supporting utilities such as power and cooling."
+  },
+  {
+    "code": "A.7.12",
+    "title": "Cabling security",
+    "description": "Protect power and communications cabling against damage, theft, compromise, and disruption to organizational operations."
+  }
+]
