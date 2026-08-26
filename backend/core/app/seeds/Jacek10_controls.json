@@ -7,48 +7,48 @@
   "controls": [
     {
       "code": "A.5.28",
-      "title": "Secure development policy",
-      "description": "Establish and implement a policy to define security requirements for the development, acquisition, maintenance, and retirement of information systems and applications."
+      "title": "Collection of evidence",
+      "description": "Establish and implement procedures for the identification, collection, acquisition, and preservation of evidence related to information security events to maintain integrity, credibility, and admissibility for disciplinary, legal, regulatory, and contractual purposes."
     },
     {
       "code": "A.5.29",
-      "title": "Security requirements analysis and specification",
-      "description": "Define security requirements in the software development process based on business needs and the organization's security policy."
+      "title": "Information security during disruption",
+      "description": "Ensure the continuity of information security processes and controls during business disruptions, ensuring that security measures remain effective even when normal operations are interrupted."
     },
     {
       "code": "A.5.30",
-      "title": "Information and communication technology (ICT) supply chain security",
-      "description": "Manage and protect security aspects related to the risk of information and communication technology supply chain."
+      "title": "ICT readiness for business continuity",
+      "description": "Establish and maintain ICT readiness to support business continuity objectives, including backup systems, failover mechanisms, and recovery procedures that align with business continuity plans."
     },
     {
       "code": "A.5.31",
-      "title": "Separation of development, test and production environments",
-      "description": "Maintain separate development, test, and production environments to prevent unauthorized code or data exposure."
+      "title": "Legal, statutory, regulatory, and contractual requirements",
+      "description": "Identify, document, and comply with all legal, statutory, regulatory, and contractual requirements applicable to information security within the organization and relevant jurisdictions."
     },
     {
       "code": "A.5.32",
-      "title": "Change management",
-      "description": "Implement and maintain procedures to control changes to information processing facilities and systems, including security impact assessment."
+      "title": "Intellectual property rights",
+      "description": "Implement controls to protect the organization's intellectual property and ensure compliance with intellectual property rights legislation and contractual obligations."
     },
     {
       "code": "A.5.33",
-      "title": "Test information",
-      "description": "Select, protect, and control test information, ensuring that test data does not compromise security in production environments."
+      "title": "Protection of records",
+      "description": "Establish and implement procedures to protect records from unauthorized access, modification, destruction, and loss, ensuring their integrity and availability throughout their lifecycle."
     },
     {
       "code": "A.5.34",
-      "title": "Protection of information systems audit tools",
-      "description": "Protect information systems audit tools and security mechanisms from unauthorized access and misuse."
+      "title": "Privacy and protection of PII",
+      "description": "Implement appropriate controls to protect personally identifiable information (PII) and ensure compliance with privacy laws and regulations, including data protection principles."
     },
     {
       "code": "A.5.35",
-      "title": "Development of information security updates",
-      "description": "Establish procedures for the development and implementation of information security updates to maintain system security."
+      "title": "Independent review of information security",
+      "description": "Conduct independent periodic reviews and assessments of the information security management system to evaluate its effectiveness and identify areas for improvement."
     },
     {
       "code": "A.5.36",
-      "title": "Control of information processing facilities",
-      "description": "Implement controls over information processing facilities to ensure security and proper functioning of systems."
+      "title": "Compliance with policies, rules, and standards for information security",
+      "description": "Monitor and enforce compliance with information security policies, rules, procedures, and standards throughout the organization to maintain a consistent security posture."
     }
   ]
 }
