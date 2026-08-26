@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "code": "ISO27001:2022",
+    "name": "Information security management systems",
+    "version": "2022"
+  },
+  "controls": [
+    {
+      "code": "A.5.28",
+      "title": "Secure development policy",
+      "description": "Establish and implement a policy to define security requirements for the development, acquisition, maintenance, and retirement of information systems and applications."
+    },
+    {
+      "code": "A.5.29",
+      "title": "Security requirements analysis and specification",
+      "description": "Define security requirements in the software development process based on business needs and the organization's security policy."
+    },
+    {
+      "code": "A.5.30",
+      "title": "Information and communication technology (ICT) supply chain security",
+      "description": "Manage and protect security aspects related to the risk of information and communication technology supply chain."
+    },
+    {
+      "code": "A.5.31",
+      "title": "Separation of development, test and production environments",
+      "description": "Maintain separate development, test, and production environments to prevent unauthorized code or data exposure."
+    },
+    {
+      "code": "A.5.32",
+      "title": "Change management",
+      "description": "Implement and maintain procedures to control changes to information processing facilities and systems, including security impact assessment."
+    },
+    {
+      "code": "A.5.33",
+      "title": "Test information",
+      "description": "Select, protect, and control test information, ensuring that test data does not compromise security in production environments."
+    },
+    {
+      "code": "A.5.34",
+      "title": "Protection of information systems audit tools",
+      "description": "Protect information systems audit tools and security mechanisms from unauthorized access and misuse."
+    },
+    {
+      "code": "A.5.35",
+      "title": "Development of information security updates",
+      "description": "Establish procedures for the development and implementation of information security updates to maintain system security."
+    },
+    {
+      "code": "A.5.36",
+      "title": "Control of information processing facilities",
+      "description": "Implement controls over information processing facilities to ensure security and proper functioning of systems."
+    }
+  ]
+}
