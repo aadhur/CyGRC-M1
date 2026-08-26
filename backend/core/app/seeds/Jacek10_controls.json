@@ -8,47 +8,47 @@
     {
       "code": "A.5.28",
       "title": "Collection of evidence",
-      "description": "Establish and implement procedures for the identification, collection, acquisition, and preservation of evidence related to information security events to maintain integrity, credibility, and admissibility for disciplinary, legal, regulatory, and contractual purposes."
+      "description": "The organisation should establish and implement procedures for the identification, collection, acquisition and preservation of evidence related to information security events."
     },
     {
       "code": "A.5.29",
       "title": "Information security during disruption",
-      "description": "Ensure the continuity of information security processes and controls during business disruptions, ensuring that security measures remain effective even when normal operations are interrupted."
+      "description": "The organisation should plan how to maintain information security at an appropriate level during disruption."
     },
     {
       "code": "A.5.30",
       "title": "ICT readiness for business continuity",
-      "description": "Establish and maintain ICT readiness to support business continuity objectives, including backup systems, failover mechanisms, and recovery procedures that align with business continuity plans."
+      "description": "ICT readiness should be planned, implemented, maintained and tested based on business continuity objectives and ICT continuity requirements."
     },
     {
       "code": "A.5.31",
       "title": "Legal, statutory, regulatory, and contractual requirements",
-      "description": "Identify, document, and comply with all legal, statutory, regulatory, and contractual requirements applicable to information security within the organization and relevant jurisdictions."
+      "description": "Legal, statutory, regulatory and contractual requirements relevant to information security and the organisations approach to meet these requirements should be identified, documented and kept up to date."
     },
     {
       "code": "A.5.32",
       "title": "Intellectual property rights",
-      "description": "Implement controls to protect the organization's intellectual property and ensure compliance with intellectual property rights legislation and contractual obligations."
+      "description": "The organisation should implement appropriate procedures to protect intellectual property rights."
     },
     {
       "code": "A.5.33",
       "title": "Protection of records",
-      "description": "Establish and implement procedures to protect records from unauthorized access, modification, destruction, and loss, ensuring their integrity and availability throughout their lifecycle."
+      "description": "Records should be protected from loss, destruction, falsification, unauthorised access and unauthorised release."
     },
     {
       "code": "A.5.34",
       "title": "Privacy and protection of PII",
-      "description": "Implement appropriate controls to protect personally identifiable information (PII) and ensure compliance with privacy laws and regulations, including data protection principles."
+      "description": "The organisation should identify and meet the requirements regarding the preservation of privacy and protection of PII according to applicable laws and regulations and contractual requirements."
     },
     {
       "code": "A.5.35",
       "title": "Independent review of information security",
-      "description": "Conduct independent periodic reviews and assessments of the information security management system to evaluate its effectiveness and identify areas for improvement."
+      "description": "The organisations approach to managing information security and its implementation including people, processes and technologies should be reviewed independently at planned intervals, or when significant changes occur."
     },
     {
       "code": "A.5.36",
       "title": "Compliance with policies, rules, and standards for information security",
-      "description": "Monitor and enforce compliance with information security policies, rules, procedures, and standards throughout the organization to maintain a consistent security posture."
+      "description": "Compliance with the organisations information security policy, topic-specific policies, rules and standards should be regularly reviewed."
     }
   ]
 }
