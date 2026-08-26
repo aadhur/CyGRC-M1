@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "code": "ISO27001:2022",
+    "name": "Information security management systems",
+    "version": "2022"
+  },
+  "controls": [
+    {
+      "code": "A.5.28",
+      "title": "Collection of evidence",
+      "description": "The organisation should establish and implement procedures for the identification, collection, acquisition and preservation of evidence related to information security events."
+    },
+    {
+      "code": "A.5.29",
+      "title": "Information security during disruption",
+      "description": "The organisation should plan how to maintain information security at an appropriate level during disruption."
+    },
+    {
+      "code": "A.5.30",
+      "title": "ICT readiness for business continuity",
+      "description": "ICT readiness should be planned, implemented, maintained and tested based on business continuity objectives and ICT continuity requirements."
+    },
+    {
+      "code": "A.5.31",
+      "title": "Legal, statutory, regulatory, and contractual requirements",
+      "description": "Legal, statutory, regulatory and contractual requirements relevant to information security and the organisations approach to meet these requirements should be identified, documented and kept up to date."
+    },
+    {
+      "code": "A.5.32",
+      "title": "Intellectual property rights",
+      "description": "The organisation should implement appropriate procedures to protect intellectual property rights."
+    },
+    {
+      "code": "A.5.33",
+      "title": "Protection of records",
+      "description": "Records should be protected from loss, destruction, falsification, unauthorised access and unauthorised release."
+    },
+    {
+      "code": "A.5.34",
+      "title": "Privacy and protection of PII",
+      "description": "The organisation should identify and meet the requirements regarding the preservation of privacy and protection of PII according to applicable laws and regulations and contractual requirements."
+    },
+    {
+      "code": "A.5.35",
+      "title": "Independent review of information security",
+      "description": "The organisations approach to managing information security and its implementation including people, processes and technologies should be reviewed independently at planned intervals, or when significant changes occur."
+    },
+    {
+      "code": "A.5.36",
+      "title": "Compliance with policies, rules, and standards for information security",
+      "description": "Compliance with the organisations information security policy, topic-specific policies, rules and standards should be regularly reviewed."
+    }
+  ]
+}
