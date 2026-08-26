@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "code": "ISO27001:2022",
+    "name": "Information security management systems",
+    "version": "2022"
+  },
+  "controls": [
+    {
+      "code": "A.5.19",
+      "title": "Information security in supplier relationships",
+      "description": "Define and implement processes and procedures to manage information security risks associated with the use of supplier products or services."
+    },
+    {
+      "code": "A.5.20",
+      "title": "Addressing information security within supplier agreements",
+      "description": "Establish and agree on relevant information security requirements with each supplier based on the type of supplier relationship."
+    },
+    {
+      "code": "A.5.21",
+      "title": "Managing information security in the ICT supply chain",
+      "description": "Define and implement processes and procedures to manage information security risks associated with the ICT products and services supply chain."
+    },
+    {
+      "code": "A.5.22",
+      "title": "Monitoring, review and change management of supplier services",
+      "description": "Regularly monitor, review, evaluate and manage changes in supplier information security practices and service delivery."
+    },
+    {
+      "code": "A.5.23",
+      "title": "Information security for use of cloud services",
+      "description": "Establish processes for the acquisition, use, management and exit from cloud services in accordance with the organisation's information security requirements."
+    },
+    {
+      "code": "A.5.24",
+      "title": "Information security incident management planning and preparation",
+      "description": "Plan and prepare for managing information security incidents by defining, establishing and communicating incident management processes, roles and responsibilities."
+    },
+    {
+      "code": "A.5.25",
+      "title": "Assessment and decision on information security events",
+      "description": "Assess information security events and decide whether they should be categorised as information security incidents."
+    },
+    {
+      "code": "A.5.26",
+      "title": "Response to information security incidents",
+      "description": "Respond to information security incidents in accordance with documented procedures."
+    },
+    {
+      "code": "A.5.27",
+      "title": "Learning from information security incidents",
+      "description": "Use knowledge gained from information security incidents to strengthen and improve information security controls."
+    }
+  ]
+}
