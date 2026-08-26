@@ -1,0 +1,54 @@
+{
+    "metadata": {
+        "code": "ISO27001:2022",
+        "name": "Information security management systems",
+        "version": "2022"
+    },
+    "controls": [
+        {
+            "code": "A.5.10",
+            "title": "Acceptable use of information and other associated assets",
+            "description": "Rules for the acceptable use and handling of information and associated assets should be identified, documented, and implemented."
+        },
+        {
+            "code": "A.5.11",
+            "title": "Return of assets",
+            "description": "Personnel and other interested parties should return all organizational assets in their possession upon change or termination of employment, contract, or agreement."
+        },
+        {
+            "code": "A.5.12",
+            "title": "Classification of information",
+            "description": "Information should be classified according to the security needs of the organization based on confidentiality, integrity, and availability requirements."
+        },
+        {
+            "code": "A.5.13",
+            "title": "Labelling of information",
+            "description": "An appropriate set of procedures for information labelling should be developed and implemented in accordance with the information classification scheme."
+        },
+        {
+            "code": "A.5.14",
+            "title": "Information transfer",
+            "description": "Information transfer rules, procedures, and controls should be in place to protect information transferred within the organization and with external parties."
+        },
+        {
+            "code": "A.5.15",
+            "title": "Access control",
+            "description": "Rules to control physical and logical access to information and assets should be established and implemented based on business and security requirements."
+        },
+        {
+            "code": "A.5.16",
+            "title": "Identity management",
+            "description": "The full lifecycle of identities should be managed, including registration, maintenance, and removal of digital identities within the organization."
+        },
+        {
+            "code": "A.5.17",
+            "title": "Authentication information",
+            "description": "The allocation and management of authentication information should be controlled through a formal process, including advising personnel on proper handling."
+        },
+        {
+            "code": "A.5.18",
+            "title": "Access rights",
+            "description": "Access rights to information and assets should be provisioned, reviewed, modified, and removed in accordance with the organization's access control policy."
+        }
+    ]
+}
