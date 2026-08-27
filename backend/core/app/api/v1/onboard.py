@@ -4,17 +4,17 @@
 
 from uuid import UUID
 
-import uuid6
-from app.db.models import Tenant, User
+from app.db.models import Tenant, TenantStatus, User, UserStatus
 from app.db.session import get_db
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid6 import uuid7
 
 router = APIRouter()
 
 
-# ── Pydantic schemas ──────────────────────────────────────────────────────
+# Pydantic schemas
 
 
 class OnboardRequest(BaseModel):
@@ -30,7 +30,7 @@ class OnboardResponse(BaseModel):
     message: str
 
 
-# ── Route ─────────────────────────────────────────────────────────────────
+# Route
 
 
 @router.post(
@@ -42,22 +42,21 @@ async def onboard_tenant(
     payload: OnboardRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-
     try:
         tenant = Tenant(
-            tenant_id=uuid6.uuid7(),
+            tenant_id=uuid7(),
             name=payload.name,
             plan=payload.plan,
-            status="provisioning",
+            status=TenantStatus.PROVISIONING,
         )
         db.add(tenant)
         await db.flush()
 
         user = User(
-            user_id=uuid6.uuid7(),
+            user_id=uuid7(),
             tenant_id=tenant.tenant_id,
             email=payload.email,
-            status="invited",
+            status=UserStatus.ACTIVE,
         )
         db.add(user)
         await db.commit()
