@@ -1,0 +1,62 @@
+[
+  {
+    "code": "A.8.11",
+    "title": "Data Masking",
+    "description": "Data masking should be used in accordance with the organisation’s topic-specific policy on access control and other related topic-specific policies, and business requirements, taking applicable legislation into consideration."
+  },
+  {
+    "code": "A.8.12",
+    "title": "Data Leakage Prevention",
+    "description": "Data leakage prevention measures should be applied to systems, networks and any other devices that process, store or transmit sensitive information."
+  },
+  {
+    "code": "A.8.13",
+    "title": "Information Backup",
+    "description": "Backup copies of information, software and systems should be maintained and regularly tested in accordance with the agreed topic-specific policy on backup."
+  },
+  {
+    "code": "A.8.14",
+    "title": "Redundancy of Information Processing Facilities",
+    "description": "Information processing facilities should be implemented with redundancy sufficient to meet availability."
+  },
+  {
+    "code": "A.8.15",
+    "title": "Logging",
+    "description": "Logs that record activities, exceptions, faults and other relevant events should be produced, stored, protected and analysed."
+  },
+  {
+    "code": "A.8.16",
+    "title": "Monitoring Activities",
+    "description": "Networks, systems and applications should be monitored for anomalous behaviour and appropriate actions taken to evaluate potential information security incidents."
+  },
+  {
+    "code": "A.8.17",
+    "title": "Clock Synchronisation",
+    "description": "The clocks of information processing systems used by the organisation should be synchronised to approved time sources."
+  },
+  {
+    "code": "A.8.18",
+    "title": "Use of Privileged Utility Programs",
+    "description": "The use of utility programs that can be capable of overriding system and application controls should be restricted and tightly controlled."
+  },
+  {
+    "code": "A.8.19",
+    "title": "Installation of Software on Operational Systems",
+    "description": "Procedures and measures should be implemented to securely manage software installation on operational systems."
+  },
+  {
+    "code": "A.8.20",
+    "title": "Network Security",
+    "description": "Networks and network devices should be secured, managed and controlled to protect information in systems and applications."
+  },
+  {
+    "code": "A.8.21",
+    "title": "Security of Network Services",
+    "description": "Security mechanisms, service levels and service requirements of network services should be identified, implemented and monitored."
+  },
+  {
+    "code": "A.8.22",
+    "title": "Segregation of Networks",
+    "description": "Groups of information services, users and information systems should be segregated in the organisation’s networks."
+  }
+]
