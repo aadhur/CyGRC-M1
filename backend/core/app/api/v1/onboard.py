@@ -14,7 +14,7 @@ from uuid6 import uuid7
 router = APIRouter()
 
 
-# Pydantic schemas
+# ── Pydantic schemas ──────────────────────────────────────────────────────
 
 
 class OnboardRequest(BaseModel):
@@ -30,7 +30,7 @@ class OnboardResponse(BaseModel):
     message: str
 
 
-# Route
+# ── Route ─────────────────────────────────────────────────────────────────
 
 
 @router.post(
