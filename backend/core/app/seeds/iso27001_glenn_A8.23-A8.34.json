@@ -2,61 +2,61 @@
   {
     "code": "A.8.23",
     "title": "Web Filtering",
-    "description": "Access to external websites should be managed and restricted to reduce exposure to malicious content, unauthorized web resources, and inappropriate material that could compromise systems or data."
+    "description": "Access to external websites should be managed to reduce exposure to malicious content."
   },
   {
     "code": "A.8.24",
     "title": "Use Of Cryptography",
-    "description": "Rules for the effective use of cryptography, including cryptographic key management, should be defined and implemented to protect the confidentiality, integrity, authenticity, and non-repudiation of information."
+    "description": "Rules for the effective use of cryptography, including cryptographic key management, should be defined and implemented."
   },
   {
     "code": "A.8.25",
     "title": "Secure Development Life Cycle",
-    "description": "Rules for the secure development of software and systems should be established and applied throughout the entire development life cycle, from planning and design through to deployment and maintenance."
+    "description": "Rules for the secure development of software and systems should be established and applied."
   },
   {
     "code": "A.8.26",
     "title": "Application Security Requirements",
-    "description": "Information security requirements should be identified, specified, and approved when developing or acquiring applications, so that security is built in rather than added on afterward."
+    "description": "Information security requirements should be identified, specified, and approved when developing or acquiring applications."
   },
   {
     "code": "A.8.27",
     "title": "Secure System Architecture And Engineering Principles",
-    "description": "Principles for engineering secure systems should be established, documented, maintained, and applied to any information system development activity, covering both new builds and ongoing changes."
+    "description": "Principles for engineering secure systems should be established, documented, maintained, and applied to any information system development activity."
   },
   {
     "code": "A.8.28",
     "title": "Secure Coding",
-    "description": "Secure coding principles should be applied to software development to reduce the number of potential security vulnerabilities introduced into code before it is deployed."
+    "description": "Secure coding principles should be applied to software development."
   },
   {
     "code": "A.8.29",
     "title": "Security Testing In Development And Acceptance",
-    "description": "Security testing processes should be defined and implemented within the development life cycle, including at acceptance stages, to verify that security requirements have been met before systems go live."
+    "description": "Security testing processes should be defined and implemented within the development life cycle."
   },
   {
     "code": "A.8.30",
     "title": "Outsourced Development",
-    "description": "Organizations should direct, monitor, and review the activities involved in outsourced system development to ensure that externally developed software and systems meet the organization's security requirements."
+    "description": "The organisation should direct, monitor and review the activities related to outsourced system development."
   },
   {
     "code": "A.8.31",
     "title": "Separation Of Development, Test And Production Environments",
-    "description": "Development, testing, and production environments should be separated and secured to reduce the risk of unauthorized access, unintended changes, or disruption to live systems and data."
+    "description": "Development, testing, and production environments should be separated and secured."
   },
   {
     "code": "A.8.32",
     "title": "Change Management",
-    "description": "Changes to information processing facilities and information systems should be subject to formal change management procedures to control and record modifications and minimize the risk of disruption."
+    "description": "Changes to information processing facilities and information systems should be subject to change management procedures."
   },
   {
     "code": "A.8.33",
     "title": "Test Information",
-    "description": "Test data used during development, testing, and evaluation of systems should be appropriately selected, protected, and managed, particularly to avoid the inappropriate use of real production data."
+    "description": "Test information should be appropriately selected, protected and managed."
   },
   {
     "code": "A.8.34",
     "title": "Protection Of Information Systems During Audit Testing",
-    "description": "Audit tests and other assurance activities involving the assessment of operational systems should be planned and agreed upon between the tester and appropriate management to minimize disruption to business processes."
+    "description": "Audit tests and other assurance activities involving the assessment of operational systems should be planned and agreed upon between the tester and appropriate management."
   }
 ]
