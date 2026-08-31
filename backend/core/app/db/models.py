@@ -16,8 +16,7 @@ class Base(DeclarativeBase):
 class TenantStatus(str, Enum):
     PROVISIONING = "provisioning"
     ACTIVE = "active"
-    SUSPENDED = "suspended"
-    DISABLED = "disabled"
+    DELETING = "deleting"
 
 
 class Tenant(Base):
@@ -61,7 +60,6 @@ class Tenant(Base):
 class UserStatus(str, Enum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
-    DISABLED = "disabled"
 
 
 class User(Base):
@@ -75,13 +73,14 @@ class User(Base):
 
     tenant_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("tenants.tenant_id"),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
 
     email: Mapped[str] = mapped_column(
         String,
-        nullable=False,
+        nullable=True,
     )
 
     status: Mapped[UserStatus] = mapped_column(
