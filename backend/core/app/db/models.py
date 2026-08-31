@@ -14,9 +14,9 @@ class Base(DeclarativeBase):
 
 
 class TenantStatus(str, Enum):
-    PROVISIONING = "provisioning"
-    ACTIVE = "active"
-    DELETING = "deleting"
+    provisioning = "provisioning"
+    active = "active"
+    deleting = "deleting"
 
 
 class Tenant(Base):
@@ -36,7 +36,7 @@ class Tenant(Base):
     status: Mapped[TenantStatus] = mapped_column(
         SQLEnum(TenantStatus, name="tenant_status_enum"),
         nullable=False,
-        default=TenantStatus.PROVISIONING,
+        default=TenantStatus.provisioning,
     )
 
     plan: Mapped[str] = mapped_column(
@@ -58,8 +58,8 @@ class Tenant(Base):
 
 
 class UserStatus(str, Enum):
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
+    active = "active"
+    suspended = "suspended"
 
 
 class User(Base):
@@ -86,7 +86,7 @@ class User(Base):
     status: Mapped[UserStatus] = mapped_column(
         SQLEnum(UserStatus, name="user_status_enum"),
         nullable=False,
-        default=UserStatus.ACTIVE,
+        default=UserStatus.active,
     )
 
     sso_subject: Mapped[str | None] = mapped_column(

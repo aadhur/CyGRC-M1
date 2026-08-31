@@ -47,7 +47,7 @@ async def onboard_tenant(
             tenant_id=uuid7(),
             name=payload.name,
             plan=payload.plan,
-            status=TenantStatus.PROVISIONING,
+            status=TenantStatus.provisioning,
         )
         db.add(tenant)
         await db.flush()
@@ -56,7 +56,7 @@ async def onboard_tenant(
             user_id=uuid7(),
             tenant_id=tenant.tenant_id,
             email=payload.email,
-            status=UserStatus.ACTIVE,
+            status=UserStatus.active,
         )
         db.add(user)
         await db.commit()
