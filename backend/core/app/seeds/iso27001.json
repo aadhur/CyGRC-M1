@@ -1,0 +1,474 @@
+{
+  "metadata": {
+    "code": "ISO27001:2022",
+    "name": "Information security management systems",
+    "version": "2022"
+  },
+  "controls": [
+    {
+      "code": "A.5.1",
+      "title": "Policies for information security",
+      "description": "The organization should define its information security policy along with topic-specific policies, obtain management approval for them, publish them, communicate them to relevant staff and stakeholders for acknowledgement, and re-examine them at regular intervals or whenever major changes take place."
+    },
+    {
+      "code": "A.5.2",
+      "title": "Information security roles and responsibilities",
+      "description": "Roles and responsibilities pertaining to information security should be established and assigned in line with what the organization requires."
+    },
+    {
+      "code": "A.5.3",
+      "title": "Segregation of duties",
+      "description": "Duties and areas of responsibility that conflict with one another should be kept separate."
+    },
+    {
+      "code": "A.5.4",
+      "title": "Management responsibilities",
+      "description": "Management is expected to direct all personnel to apply information security in line with the organization's established information security policy, topic-specific policies, and procedures."
+    },
+    {
+      "code": "A.5.5",
+      "title": "Contact with authorities",
+      "description": "Contacts with the appropriate authorities should be set up and kept active by the organization."
+    },
+    {
+      "code": "A.5.6",
+      "title": "Contact with special interest groups",
+      "description": "Organizations are encouraged to create and sustain relationships with special interest groups."
+    },
+    {
+      "code": "A.5.7",
+      "title": "Threat intelligence",
+      "description": "Data concerning information security threats should be gathered and evaluated in order to generate threat intelligence."
+    },
+    {
+      "code": "A.5.8",
+      "title": "Information security in project management",
+      "description": "Project management should incorporate information security considerations."
+    },
+    {
+      "code": "A.5.9",
+      "title": "Inventory of information and other associated assets",
+      "description": "A record of information and related assets, together with their designated owners, should be created and kept up to date."
+    },
+    {
+      "code": "A.5.10",
+      "title": "Acceptable use of information and other associated assets",
+      "description": "Guidelines governing the proper use and handling of information and its related assets should be determined, written down, and put into practice."
+    },
+    {
+      "code": "A.5.11",
+      "title": "Return of assets",
+      "description": "When employment, a contract, or an agreement ends or changes, staff and other stakeholders must hand back every organizational asset they hold."
+    },
+    {
+      "code": "A.5.12",
+      "title": "Classification of information",
+      "description": "Information should be assigned classifications that reflect the organization's security requirements with respect to confidentiality, integrity, and availability."
+    },
+    {
+      "code": "A.5.13",
+      "title": "Labelling of information",
+      "description": "Suitable procedures for labelling information should be created and applied consistent with the scheme used to classify information."
+    },
+    {
+      "code": "A.5.14",
+      "title": "Information transfer",
+      "description": "Rules, procedures, and controls governing information transfer should be in place to safeguard information shared both internally and with outside parties."
+    },
+    {
+      "code": "A.5.15",
+      "title": "Access control",
+      "description": "Based on business and security needs, rules governing both physical and logical access to information and assets should be set up and enforced."
+    },
+    {
+      "code": "A.5.16",
+      "title": "Identity management",
+      "description": "The complete life cycle of digital identities — covering their registration, upkeep, and eventual removal — should be managed within the organization."
+    },
+    {
+      "code": "A.5.17",
+      "title": "Authentication information",
+      "description": "A formal management process should govern how authentication information is issued and administered, and should include guidance for staff on handling it correctly."
+    },
+    {
+      "code": "A.5.18",
+      "title": "Access rights",
+      "description": "Access rights to information and assets should be granted, periodically reviewed, adjusted, and revoked in line with the organization's policy on access control."
+    },
+    {
+      "code": "A.5.19",
+      "title": "Information security in supplier relationships",
+      "description": "Processes and procedures should be defined and put in place for handling information security risks that arise from using suppliers' products or services."
+    },
+    {
+      "code": "A.5.20",
+      "title": "Addressing information security within supplier agreements",
+      "description": "Relevant information security requirements should be established and mutually agreed with every supplier, according to the nature of the relationship with that supplier."
+    },
+    {
+      "code": "A.5.21",
+      "title": "Managing information security in the ICT supply chain",
+      "description": "Processes and procedures should be established and applied to address information security risks connected to the supply chain for ICT products and services."
+    },
+    {
+      "code": "A.5.22",
+      "title": "Monitoring, review and change management of supplier services",
+      "description": "Suppliers' information security practices and service delivery should be monitored, reviewed, and evaluated on a recurring basis, with any changes managed accordingly."
+    },
+    {
+      "code": "A.5.23",
+      "title": "Information security for use of cloud services",
+      "description": "Processes covering the acquisition, use, management, and exit of cloud services should be established in line with the organization's information security requirements."
+    },
+    {
+      "code": "A.5.24",
+      "title": "Information security incident management planning and preparation",
+      "description": "Preparation for managing information security incidents should include defining, setting up, and communicating the relevant incident management processes, roles, and responsibilities."
+    },
+    {
+      "code": "A.5.25",
+      "title": "Assessment and decision on information security events",
+      "description": "Information security events should be evaluated to determine whether they qualify as information security incidents."
+    },
+    {
+      "code": "A.5.26",
+      "title": "Response to information security incidents",
+      "description": "Responses to information security incidents should follow the procedures that have been documented."
+    },
+    {
+      "code": "A.5.27",
+      "title": "Learning from information security incidents",
+      "description": "Lessons learned from information security incidents should be applied to reinforce and enhance information security controls."
+    },
+    {
+      "code": "A.5.28",
+      "title": "Collection of evidence",
+      "description": "Procedures should be established and applied for identifying, gathering, acquiring, and preserving evidence connected to information security events."
+    },
+    {
+      "code": "A.5.29",
+      "title": "Information security during disruption",
+      "description": "Plans should be made for keeping information security at a suitable level throughout periods of disruption."
+    },
+    {
+      "code": "A.5.30",
+      "title": "ICT readiness for business continuity",
+      "description": "ICT readiness should be planned, put into effect, kept current, and tested in line with business continuity goals and the requirements for ICT continuity."
+    },
+    {
+      "code": "A.5.31",
+      "title": "Legal, statutory, regulatory, and contractual requirements",
+      "description": "Requirements arising from law, regulation, and contracts that relate to information security, together with the organization's approach to satisfying them, should be identified, recorded, and kept up to date."
+    },
+    {
+      "code": "A.5.32",
+      "title": "Intellectual property rights",
+      "description": "Suitable procedures should be put in place by the organization to safeguard intellectual property rights."
+    },
+    {
+      "code": "A.5.33",
+      "title": "Protection of records",
+      "description": "Records must be safeguarded against loss, destruction, falsification, and access or disclosure by unauthorized parties."
+    },
+    {
+      "code": "A.5.34",
+      "title": "Privacy and protection of PII",
+      "description": "Requirements for preserving privacy and protecting PII should be identified and fulfilled in accordance with relevant laws, regulations, and contractual obligations."
+    },
+    {
+      "code": "A.5.35",
+      "title": "Independent review of information security",
+      "description": "An independent review of the organization's information security management approach and its implementation — covering people, processes, and technology — should take place at planned intervals or following major changes."
+    },
+    {
+      "code": "A.5.36",
+      "title": "Compliance with policies, rules, and standards for information security",
+      "description": "Adherence to the organization's information security policy, topic-specific policies, rules, and standards should be reviewed on a regular basis."
+    },
+    {
+      "code": "A.5.37",
+      "title": "Documented operating procedures",
+      "description": "Operating procedures for information processing facilities should be written down and made accessible to the personnel who require them."
+    },
+    {
+      "code": "A.6.1",
+      "title": "Screening",
+      "description": "Before joining the organization — and on a continuing basis thereafter — all prospective personnel should undergo background verification checks. These checks should comply with applicable laws, regulations, and ethical standards, and be proportionate to business needs, the classification of the information to be accessed, and the perceived risks."
+    },
+    {
+      "code": "A.6.2",
+      "title": "Terms and conditions of employment",
+      "description": "Contracts of employment should specify the information security responsibilities of both the employee and the organization."
+    },
+    {
+      "code": "A.6.3",
+      "title": "Information security awareness, education and training",
+      "description": "Staff and other relevant stakeholders should be given suitable information security awareness, education, and training, along with regular updates on the organization's information security policy, topic-specific policies, and procedures, appropriate to their job roles."
+    },
+    {
+      "code": "A.6.4",
+      "title": "Disciplinary process",
+      "description": "A formal disciplinary process should be established and communicated so that action can be taken against staff or other relevant stakeholders who violate information security policies."
+    },
+    {
+      "code": "A.6.5",
+      "title": "Responsibilities after termination or change of employment",
+      "description": "Information security duties and responsibilities that continue to apply after employment ends or changes should be specified, enforced, and communicated to the affected personnel and other stakeholders."
+    },
+    {
+      "code": "A.6.6",
+      "title": "Confidentiality or non-disclosure agreements",
+      "description": "Organizations are required to identify, document, and periodically review confidentiality agreements or non-disclosure agreements (NDAs) that adequately address their information protection needs."
+    },
+    {
+      "code": "A.6.7",
+      "title": "Remote working",
+      "description": "This control advises organizations to adopt a policy that guarantees secure access to information systems and networks for those working away from the office."
+    },
+    {
+      "code": "A.6.8",
+      "title": "Information security event reporting",
+      "description": "Organizations must establish a mechanism through which staff can promptly report information security events they observe or suspect, using the proper channels."
+    },
+    {
+      "code": "A.7.1",
+      "title": "Physical security perimeter",
+      "description": "Safeguards should be in place to stop unauthorized physical access, damage, or interference affecting the organization's information and other associated assets."
+    },
+    {
+      "code": "A.7.2",
+      "title": "Physical entry controls",
+      "description": "Suitable entry controls and access points should be used to safeguard secure areas."
+    },
+    {
+      "code": "A.7.3",
+      "title": "Securing offices, rooms and facilities",
+      "description": "Physical protection measures for offices, rooms, and facilities should be designed and put in place."
+    },
+    {
+      "code": "A.7.4",
+      "title": "Physical security monitoring",
+      "description": "Continuous monitoring of premises should be maintained to detect unauthorized physical access."
+    },
+    {
+      "code": "A.7.5",
+      "title": "Protecting against physical and environmental threats",
+      "description": "Measures guarding against physical and environmental threats — including natural disasters and other deliberate or accidental physical threats to infrastructure — should be designed and implemented."
+    },
+    {
+      "code": "A.7.6",
+      "title": "Working in secure areas",
+      "description": "Appropriate security measures for those working within secure areas should be designed and put into practice."
+    },
+    {
+      "code": "A.7.7",
+      "title": "Clear desk and clear screen",
+      "description": "Rules requiring desks to be cleared of papers and removable storage media, and screens to be cleared on information processing equipment, should be established and properly enforced."
+    },
+    {
+      "code": "A.7.8",
+      "title": "Equipment siting and protection",
+      "description": "Equipment should be positioned in secure locations and given appropriate protection."
+    },
+    {
+      "code": "A.7.9",
+      "title": "Security of assets off-premises",
+      "description": "Assets located away from the organization's premises should be safeguarded."
+    },
+    {
+      "code": "A.7.10",
+      "title": "Storage media",
+      "description": "Storage media should be managed throughout their entire life cycle — from acquisition through use, transportation, and disposal — in line with the organization's classification scheme and handling requirements."
+    },
+    {
+      "code": "A.7.11",
+      "title": "Supporting utilities",
+      "description": "Safeguards should protect information processing facilities against power outages and other disruptions resulting from failures in supporting utilities."
+    },
+    {
+      "code": "A.7.12",
+      "title": "Cabling security",
+      "description": "Cables carrying power, data, or supporting information services should be shielded against interception, interference, and damage."
+    },
+    {
+      "code": "A.7.13",
+      "title": "Equipment maintenance",
+      "description": "Proper maintenance of equipment is required to preserve the availability, integrity, and confidentiality of information."
+    },
+    {
+      "code": "A.7.14",
+      "title": "Secure disposal or re-use of equipment",
+      "description": "Before equipment containing storage media is disposed of or reused, checks should confirm that any sensitive data and licensed software has been removed or securely overwritten."
+    },
+    {
+      "code": "A.8.1",
+      "title": "User endpoint devices",
+      "description": "Information that is held on, processed by, or reachable through user endpoint devices must be safeguarded."
+    },
+    {
+      "code": "A.8.2",
+      "title": "Privileged access rights",
+      "description": "Privileged access rights should be limited and carefully managed in both their allocation and use."
+    },
+    {
+      "code": "A.8.3",
+      "title": "Information access restriction",
+      "description": "Access to information and other associated assets should be limited in line with the established topic-specific policy on access control."
+    },
+    {
+      "code": "A.8.4",
+      "title": "Access to source code",
+      "description": "Both read and write permissions for source code, development tools, and software libraries should be properly controlled."
+    },
+    {
+      "code": "A.8.5",
+      "title": "Secure authentication",
+      "description": "Authentication technologies and procedures that are secure should be deployed in accordance with information access restrictions and the topic-specific policy on access control."
+    },
+    {
+      "code": "A.8.6",
+      "title": "Capacity management",
+      "description": "Resource utilization should be tracked and tuned to match both present and anticipated capacity needs."
+    },
+    {
+      "code": "A.8.7",
+      "title": "Protection against malware",
+      "description": "Anti-malware protections should be deployed and reinforced by suitable user awareness efforts."
+    },
+    {
+      "code": "A.8.8",
+      "title": "Management of technical vulnerabilities",
+      "description": "The organization should gather information on technical vulnerabilities affecting its information systems, assess its exposure to those weaknesses, and take suitable measures in response."
+    },
+    {
+      "code": "A.8.9",
+      "title": "Configuration management",
+      "description": "The configurations of hardware, software, services, and networks — including their security settings — should be defined, documented, applied, monitored, and reviewed."
+    },
+    {
+      "code": "A.8.10",
+      "title": "Information deletion",
+      "description": "When information held in information systems, devices, or any other storage media is no longer needed, it should be deleted."
+    },
+    {
+      "code": "A.8.11",
+      "title": "Data masking",
+      "description": "The application of data masking should follow the organization's topic-specific policy on access control, other related topic-specific policies, and business needs, while also respecting applicable legislation."
+    },
+    {
+      "code": "A.8.12",
+      "title": "Data leakage prevention",
+      "description": "Measures to prevent data leakage should be deployed across systems, networks, and any other devices that handle, hold, or transmit sensitive information."
+    },
+    {
+      "code": "A.8.13",
+      "title": "Information backup",
+      "description": "Backup copies of information, software, and systems should be kept and tested at regular intervals, consistent with the agreed topic-specific policy on backup."
+    },
+    {
+      "code": "A.8.14",
+      "title": "Redundancy of information processing facilities",
+      "description": "Redundancy adequate to satisfy availability requirements should be built into information processing facilities."
+    },
+    {
+      "code": "A.8.15",
+      "title": "Logging",
+      "description": "Logs capturing activities, exceptions, faults, and other relevant events should be generated, retained, safeguarded, and analysed."
+    },
+    {
+      "code": "A.8.16",
+      "title": "Monitoring activities",
+      "description": "Anomalous behaviour in networks, systems, and applications should be monitored, with suitable actions taken to assess potential information security incidents."
+    },
+    {
+      "code": "A.8.17",
+      "title": "Clock synchronisation",
+      "description": "Clocks on the information processing systems used by the organization should be kept in sync with approved time sources."
+    },
+    {
+      "code": "A.8.18",
+      "title": "Use of privileged utility programs",
+      "description": "Utility programs capable of bypassing system and application controls should have their use restricted and closely supervised."
+    },
+    {
+      "code": "A.8.19",
+      "title": "Installation of software on operational systems",
+      "description": "Procedures and safeguards should be put in place to manage software installation on operational systems securely."
+    },
+    {
+      "code": "A.8.20",
+      "title": "Network security",
+      "description": "To protect the information held in systems and applications, networks and network devices should be secured, managed, and controlled."
+    },
+    {
+      "code": "A.8.21",
+      "title": "Security of network services",
+      "description": "The security mechanisms, service levels, and service requirements of network services should be determined, put in place, and kept under observation."
+    },
+    {
+      "code": "A.8.22",
+      "title": "Segregation of networks",
+      "description": "Within the organization's networks, information services, users, and information systems should be separated into distinct groups."
+    },
+    {
+      "code": "A.8.23",
+      "title": "Web filtering",
+      "description": "Access to websites outside the organization should be controlled to limit exposure to harmful content."
+    },
+    {
+      "code": "A.8.24",
+      "title": "Use of cryptography",
+      "description": "Rules governing the effective application of cryptography — including the management of cryptographic keys — should be established and enforced."
+    },
+    {
+      "code": "A.8.25",
+      "title": "Secure development life cycle",
+      "description": "Rules covering the secure development of software and systems should be defined and put into practice."
+    },
+    {
+      "code": "A.8.26",
+      "title": "Application security requirements",
+      "description": "When applications are being developed or acquired, their information security requirements should be identified, detailed, and formally approved."
+    },
+    {
+      "code": "A.8.27",
+      "title": "Secure system architecture and engineering principles",
+      "description": "Principles for the secure engineering of systems should be defined, documented, kept up to date, and applied across all information system development activities."
+    },
+    {
+      "code": "A.8.28",
+      "title": "Secure coding",
+      "description": "Software development should follow principles of secure coding."
+    },
+    {
+      "code": "A.8.29",
+      "title": "Security testing in development and acceptance",
+      "description": "Processes for security testing should be established and embedded within the development life cycle."
+    },
+    {
+      "code": "A.8.30",
+      "title": "Outsourced development",
+      "description": "Activities connected to system development that has been outsourced should be guided, monitored, and reviewed by the organization."
+    },
+    {
+      "code": "A.8.31",
+      "title": "Separation of development, test and production environments",
+      "description": "Environments used for development, testing, and production should be kept apart from one another and appropriately protected."
+    },
+    {
+      "code": "A.8.32",
+      "title": "Change management",
+      "description": "Any changes to information processing facilities and information systems should go through formal change management procedures."
+    },
+    {
+      "code": "A.8.33",
+      "title": "Test information",
+      "description": "Information used for testing should be carefully chosen, protected, and managed."
+    },
+    {
+      "code": "A.8.34",
+      "title": "Protection of information systems during audit testing",
+      "description": "Audit tests and similar assurance activities that assess operational systems should be planned and mutually agreed between the tester and the relevant management."
+    }
+  ]
+}
