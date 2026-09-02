@@ -1,251 +1,291 @@
-# NOTE: This is a DRAFT file. Revanth (Step 4) will merge this into models.py
+# backend/core/app/db/evidence_models.py
+# Author: Vikram Singh
+# Issue: #B2 — Core Tenant-Scoped Schema + RLS Activation
+# Task: EvidenceRequirement + Evidence models
+# NOTE: Draft file — Revanth will integrate this into models.py
 
-"""
-DRAFT MODELS — EvidenceRequirement & Evidence
-These will be integrated into models.py by Revanth during migration assembly.
+from __future__ import annotations
 
-Also defined here:
-- Back-populating relationship on User → controls (to be added in models.py)
-"""
+from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING
+from uuid import UUID
 
-import uuid
+from app.db.models import Base
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from uuid6 import uuid7
 
-from sqlalchemy import (
-    TIMESTAMP,
-    VARCHAR,
-    Column,
-    ForeignKey,
-    Integer,
-    Text,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-
-# ─────────────────────────────────────────────────────────
-# NOTE for Revanth:
-# Import Base from wherever it's declared in models.py
-# e.g. from backend.core.app.db.models import Base
-# For now we show it standalone for clarity
-# ─────────────────────────────────────────────────────────
-# from sqlalchemy.orm import DeclarativeBase
-# class Base(DeclarativeBase): pass
-# (Remove above when integrating — use the existing Base from models.py)
+if TYPE_CHECKING:
+    from app.db.models import Control
 
 
-# ═══════════════════════════════════════════════════════════
+# ============================================================
+# ENUM — Review Status
+# ============================================================
+
+
+class ReviewStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+# ============================================================
 # TABLE 1: evidence_requirements
-# Maps what kind of evidence is needed per control
-# No tenant_id here — it's a definition table per control
-# ═══════════════════════════════════════════════════════════
-class EvidenceRequirement:
-    """
-    Stores the requirement/definition of what evidence
-    a particular control needs, and how often.
+# ============================================================
 
-    Columns:
-    - requirement_id : UUID PK
-    - control_id     : UUID FK → controls.control_id
-    - type           : VARCHAR (e.g., 'document', 'screenshot', 'config')
-    - cadence_days   : INTEGER (how often evidence must be refreshed)
-    - description    : TEXT (details of what's needed)
+
+class EvidenceRequirement(Base):
+    """
+    Defines the type and refresh cadence of evidence required
+    for a particular compliance control.
     """
 
     __tablename__ = "evidence_requirements"
 
-    requirement_id = Column(
-        UUID(as_uuid=True),
+    # --------------------------------------------------------
+    # Primary Key
+    # --------------------------------------------------------
+
+    requirement_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
         primary_key=True,
-        default=uuid.uuid4,  # UUID v4 used here; swap to uuid7 if lib available
+        default=uuid7,
         nullable=False,
-        comment="Primary key — unique requirement identifier",
     )
 
-    control_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("controls.control_id", ondelete="CASCADE"),
+    # --------------------------------------------------------
+    # Foreign Key → controls
+    # --------------------------------------------------------
+
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(
+            "controls.control_id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
         index=True,
-        comment="Which control this requirement belongs to",
     )
 
-    type = Column(
-        VARCHAR(100),
+    # --------------------------------------------------------
+    # Requirement Details
+    # --------------------------------------------------------
+
+    type: Mapped[str] = mapped_column(
+        String(100),
         nullable=False,
-        comment="Evidence type: document, screenshot, config_json, etc.",
     )
 
-    cadence_days = Column(
+    cadence_days: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
-        comment="How many days before this evidence expires and needs refresh",
     )
 
-    description = Column(
+    description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Human-readable description of what evidence is needed",
     )
 
-    # ── Relationships ──────────────────────────────────────
-    # One EvidenceRequirement → one Control (many-to-one)
-    control = relationship(
+    # --------------------------------------------------------
+    # Relationships
+    # --------------------------------------------------------
+
+    # Many EvidenceRequirement → One Control
+    control: Mapped[Control] = relationship(
         "Control",
         back_populates="evidence_requirements",
-        comment="Parent control this requirement is attached to",
     )
 
-    # One EvidenceRequirement → many Evidence rows
-    evidence_items = relationship(
+    # One EvidenceRequirement → Many Evidence
+    evidence_items: Mapped[list[Evidence]] = relationship(
         "Evidence",
         back_populates="requirement",
         cascade="all, delete-orphan",
-        comment="All evidence collected against this requirement",
     )
 
 
-# ═══════════════════════════════════════════════════════════
+# ============================================================
 # TABLE 2: evidence
-# Actual collected evidence records (files, configs, etc.)
-# RLS ENFORCED via tenant_id
-# ═══════════════════════════════════════════════════════════
-class Evidence:
+# ============================================================
+
+
+class Evidence(Base):
     """
-    Stores pointers to actual collected evidence blobs.
-    Each row = one piece of evidence collected for one control.
+    Stores metadata and storage pointers for collected evidence.
 
-    RLS Policy: evidence_isolation
-    USING (tenant_id = current_setting('app.tenant_id')::uuid)
-
-    Columns:
-    - evidence_id    : UUID PK
-    - tenant_id      : UUID FK → tenants.tenant_id  [RLS enforced]
-    - control_id     : UUID FK → controls.control_id
-    - requirement_id : UUID FK → evidence_requirements.requirement_id
-    - sha256         : VARCHAR (integrity hash of the blob)
-    - blob_s3_key    : VARCHAR (S3/MinIO path)
-    - collected_at   : TIMESTAMPTZ
-    - connector      : TEXT (which collector job fetched it)
-    - source_ref     : TEXT (target cloud resource, e.g. aws::bucket::my-bucket)
-    - artefact_type  : TEXT (config_json, pdf, screenshot)
-    - expires_at     : TIMESTAMPTZ (triggers staleness scans)
-    - reviewer       : UUID (human auditor user_id)
-    - reviewed_at    : TIMESTAMPTZ
-    - review_status  : TEXT (pending, approved, rejected)
+    Evidence is tenant-scoped through tenant_id and is protected
+    by PostgreSQL Row-Level Security.
     """
 
     __tablename__ = "evidence"
 
-    # ── Primary Key ────────────────────────────────────────
-    evidence_id = Column(
-        UUID(as_uuid=True),
+    # --------------------------------------------------------
+    # Primary Key
+    # --------------------------------------------------------
+
+    evidence_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
         primary_key=True,
-        default=uuid.uuid4,
+        default=uuid7,
         nullable=False,
-        comment="Primary key — unique evidence record identifier",
     )
 
-    # ── Tenant Scoping (RLS target column) ─────────────────
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-        comment="Tenant this evidence belongs to — RLS enforced on this column",
-    )
+    # --------------------------------------------------------
+    # Tenant Scoping
+    # --------------------------------------------------------
 
-    # ── Foreign Keys ───────────────────────────────────────
-    control_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("controls.control_id", ondelete="CASCADE"),
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(
+            "tenants.tenant_id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
         index=True,
-        comment="Which control this evidence is collected for",
     )
 
-    requirement_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("evidence_requirements.requirement_id", ondelete="SET NULL"),
+    # --------------------------------------------------------
+    # Foreign Key → controls
+    # --------------------------------------------------------
+
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(
+            "controls.control_id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    # --------------------------------------------------------
+    # Foreign Key → evidence_requirements
+    # --------------------------------------------------------
+
+    requirement_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(
+            "evidence_requirements.requirement_id",
+            ondelete="SET NULL",
+        ),
         nullable=True,
         index=True,
-        comment="Which specific requirement this evidence satisfies",
     )
 
-    # ── Blob / Storage ────────────────────────────────────
-    sha256 = Column(
-        VARCHAR(64),  # SHA-256 is always 64 hex chars
+    # --------------------------------------------------------
+    # Evidence Storage
+    # --------------------------------------------------------
+
+    sha256: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
-        comment="SHA-256 hash of the raw blob for integrity verification",
     )
 
-    blob_s3_key = Column(
-        VARCHAR(512),
+    blob_s3_key: Mapped[str | None] = mapped_column(
+        String(512),
         nullable=True,
-        comment="S3/MinIO object key: tenants/{tenant_id}/evidence/{id}.json",
     )
 
-    # ── Collection Metadata ───────────────────────────────
-    collected_at = Column(
-        TIMESTAMP(timezone=True),
+    # --------------------------------------------------------
+    # Collection Metadata
+    # --------------------------------------------------------
+
+    collected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
-        comment="When this evidence was collected/uploaded",
     )
 
-    connector = Column(
+    connector: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Which collector job/integration fetched this evidence",
     )
 
-    source_ref = Column(
+    source_ref: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Target cloud resource reference e.g. aws::bucket::my-bucket",
     )
 
-    artefact_type = Column(
+    artefact_type: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
-        comment="Type of artefact: config_json, pdf, screenshot, etc.",
     )
 
-    expires_at = Column(
-        TIMESTAMP(timezone=True),
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
-        comment="When this evidence expires — triggers staleness scan",
     )
 
-    # ── Human Review ──────────────────────────────────────
-    reviewer = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.user_id", ondelete="SET NULL"),
+    # --------------------------------------------------------
+    # Human Review
+    # --------------------------------------------------------
+
+    reviewer: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
         nullable=True,
-        comment="user_id of the human auditor who reviewed this evidence",
     )
 
-    reviewed_at = Column(
-        TIMESTAMP(timezone=True),
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
-        comment="When the human review was completed",
     )
 
-    review_status = Column(
-        Text,
+    review_status: Mapped[str | None] = mapped_column(
+        String(20),
         nullable=True,
-        default="pending",
-        comment="Review state: pending | approved | rejected",
+        default=ReviewStatus.pending.value,
     )
 
-    # ── Relationships ──────────────────────────────────────
-    # Many Evidence → one Control
-    control = relationship(
+    # --------------------------------------------------------
+    # Relationships
+    # --------------------------------------------------------
+
+    # Many Evidence → One Control
+    control: Mapped[Control] = relationship(
         "Control",
         back_populates="evidence_items",
-        comment="The control this evidence is attached to",
     )
 
-    # Many Evidence → one EvidenceRequirement
-    requirement = relationship(
+    # Many Evidence → One EvidenceRequirement
+    requirement: Mapped[EvidenceRequirement | None] = relationship(
         "EvidenceRequirement",
         back_populates="evidence_items",
-        comment="The specific requirement this evidence satisfies",
     )
+
+
+# ============================================================
+# RELATIONSHIP TO BE ADDED BY REVANTH DURING INTEGRATION
+# ============================================================
+
+"""
+Add this relationship to the existing User model in models.py:
+
+    controls = relationship(
+        "Control",
+        back_populates="owner_user",
+        foreign_keys="[Control.owner]",
+    )
+
+
+Add these relationships to the existing Control model:
+
+    owner_user = relationship(
+        "User",
+        back_populates="controls",
+        foreign_keys=[owner],
+    )
+
+    evidence_requirements = relationship(
+        "EvidenceRequirement",
+        back_populates="control",
+        cascade="all, delete-orphan",
+    )
+
+    evidence_items = relationship(
+        "Evidence",
+        back_populates="control",
+        cascade="all, delete-orphan",
+    )
+"""
