@@ -41,11 +41,11 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum(
-                "passing",
-                "failing",
-                "stale",
-                "not_assessed",
-                "in_remediation",
+                "Passing",
+                "Failing",
+                "Stale",
+                "Not Assessed",
+                "In Remediation",
                 name="control_status_enum",
             ),
             nullable=False,
@@ -69,7 +69,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "evidence_requirements",
-        sa.Column("requirement_id", sa.UUID(), nullable=False),
+        sa.Column("requirement_id", sa.UUID(), nullable=True),
         sa.Column("control_id", sa.UUID(), nullable=False),
         sa.Column("type", sa.String(length=100), nullable=False),
         sa.Column("cadence_days", sa.Integer(), nullable=True),
@@ -90,7 +90,7 @@ def upgrade() -> None:
         sa.Column("evidence_id", sa.UUID(), nullable=False),
         sa.Column("tenant_id", sa.UUID(), nullable=False),
         sa.Column("control_id", sa.UUID(), nullable=False),
-        sa.Column("requirement_id", sa.UUID(), nullable=False),
+        sa.Column("requirement_id", sa.UUID(), nullable=True),
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("blob_s3_key", sa.String(length=512), nullable=False),
         sa.Column("collected_at", sa.DateTime(timezone=True), nullable=False),

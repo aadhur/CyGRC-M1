@@ -1,12 +1,3 @@
-# ADDITIONS TO backend/core/app/db/models.py FOR ISSUE #B2
-# Integrated from: framework_control_models.py + evidence_models.py
-# Changes:
-# 1. Add Text, Integer imports on sqlalchemy
-# 2. Add framework, control, evidence and evidence_requirements models
-# 3. Establish relationships between Users, Control and Evidence
-# 4. Removed some comments for a cleaner look
-
-
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
@@ -317,7 +308,7 @@ class Evidence(Base):
             "evidence_requirements.requirement_id",
             ondelete="SET NULL",
         ),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
