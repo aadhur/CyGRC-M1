@@ -27,7 +27,7 @@ def upgrade() -> None:
         CREATE POLICY users_isolation
         ON users
         USING (
-            tenant_id = current_setting('app.current_tenant_id')::uuid
+            tenant_id = current_setting('app.tenant_id')::uuid
         );
     """)
 
@@ -35,7 +35,7 @@ def upgrade() -> None:
         CREATE POLICY controls_isolation
         ON controls
         USING (
-            tenant_id = current_setting('app.current_tenant_id')::uuid
+            tenant_id = current_setting('app.tenant_id')::uuid
         );
     """)
 
@@ -43,7 +43,7 @@ def upgrade() -> None:
         CREATE POLICY evidence_isolation
         ON evidence
         USING (
-            tenant_id = current_setting('app.current_tenant_id')::uuid
+            tenant_id = current_setting('app.tenant_id')::uuid
         );
     """)
 
