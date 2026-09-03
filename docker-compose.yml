@@ -62,6 +62,24 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+  cygrc-storage-setup:
+    image: minio/mc:latest
+    container_name: cygrc-storage-setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000
+      minio_local_admin minio_local_password_123;
+      do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      echo 'MinIO is available.';
+      mc mb --ignore-existing local/cygrc-evidence;
+      mc anonymous set download local/cygrc-evidence;
+      echo 'cygrc-evidence bucket is ready.';
+      "
 
 volumes:
   pgdata:
