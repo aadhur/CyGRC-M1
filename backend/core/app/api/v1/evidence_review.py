@@ -1,4 +1,4 @@
-﻿# POST /v1/evidence/{id}/review — allows a Compliance Manager or Auditor to
+# POST /v1/evidence/{id}/review — allows a Compliance Manager or Auditor to
 # approve or reject an evidence artefact.
 #
 # TEMPORARY FILE (B5 — evidence-review squad):
@@ -166,7 +166,7 @@ class ReviewRequest(BaseModel):
         allowed = {"approved", "rejected"}
         if self.review_status not in allowed:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     f"Invalid review_status '{self.review_status}'. "
                     "Must be 'approved' or 'rejected'."
