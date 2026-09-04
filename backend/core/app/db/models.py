@@ -1,5 +1,5 @@
+import enum
 from datetime import datetime, timezone
-from enum import Enum
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
@@ -13,10 +13,34 @@ class Base(DeclarativeBase):
     pass
 
 
-class TenantStatus(str, Enum):
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    USER = "user"
+
+
+class TenantStatus(str, enum.Enum):
     provisioning = "provisioning"
     active = "active"
     deleting = "deleting"
+
+
+class ReviewStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class UserStatus(str, enum.Enum):
+    active = "active"
+    suspended = "suspended"
+
+
+class ControlStatus(str, enum.Enum):
+    passing = "Passing"
+    failing = "Failing"
+    stale = "Stale"
+    not_assessed = "Not Assessed"
+    in_remediation = "In Remediation"
 
 
 class Tenant(Base):
@@ -57,11 +81,6 @@ class Tenant(Base):
     )
 
 
-class UserStatus(str, Enum):
-    active = "active"
-    suspended = "suspended"
-
-
 class User(Base):
     __tablename__ = "users"
 
@@ -89,6 +108,17 @@ class User(Base):
         default=UserStatus.active,
     )
 
+    role: Mapped[UserRole] = mapped_column(
+        SQLEnum(
+            UserRole,
+            name="user_role",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=UserRole.USER,
+    )
+
     sso_subject: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
@@ -106,15 +136,6 @@ class User(Base):
     )
 
 
-class ControlStatus(str, Enum):
-    passing = "Passing"
-    failing = "Failing"
-    stale = "Stale"
-    not_assessed = "Not Assessed"
-    in_remediation = "In Remediation"
-
-
-# Framework table
 class Framework(Base):
     __tablename__ = "frameworks"
 
@@ -138,7 +159,6 @@ class Framework(Base):
     )
 
 
-# Control table
 class Control(Base):
     __tablename__ = "controls"
 
@@ -172,10 +192,16 @@ class Control(Base):
         nullable=False,
     )
     status: Mapped[ControlStatus] = mapped_column(
-        SQLEnum(ControlStatus, name="control_status_enum"),
+        SQLEnum(
+            ControlStatus,
+            name="control_status_enum",
+            values_callable=lambda x: [e.value for e in x],
+        ),
         nullable=False,
         default=ControlStatus.not_assessed,
     )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     owner: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.user_id", ondelete="RESTRICT"),
@@ -202,14 +228,6 @@ class Control(Base):
     )
 
 
-# ENUM — Review Status
-class ReviewStatus(str, Enum):
-    pending = "pending"
-    approved = "approved"
-    rejected = "rejected"
-
-
-# TABLE 1: evidence_requirements
 class EvidenceRequirement(Base):
     """
     Defines the type and refresh cadence of evidence required
@@ -264,7 +282,6 @@ class EvidenceRequirement(Base):
     )
 
 
-# TABLE 2: evidence
 class Evidence(Base):
     """
     Stores metadata and storage pointers for collected evidence.

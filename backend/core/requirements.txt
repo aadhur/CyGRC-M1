@@ -7,3 +7,5 @@ asyncpg==0.29.0
 alembic==1.13.2
 uuid6==2024.7.10
 psycopg2-binary==2.9.9
+httpx==0.28.1
+jwt==1.4.0
