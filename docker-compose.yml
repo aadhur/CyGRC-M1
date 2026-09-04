@@ -38,12 +38,14 @@ services:
     container_name: cygrc-auth
     environment:
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin_password_123
+      KEYCLOAK_ADMIN_PASSWORD: admin_password_123 # Fine for local dev; override in prod env
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/grc_platform
       KC_DB_USERNAME: grc_user
       KC_DB_PASSWORD: grc_local_password_123
-    command: start-dev --http-port 8080
+    command: start-dev --http-port 8080 --import-realm
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
     ports:
       - "8080:8080"
     depends_on:
