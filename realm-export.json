@@ -2,6 +2,32 @@
   "id": "83c95f52-bb97-4690-8882-6c880cb3c996",
   "realm": "cyart-platform",
   "notBefore": 0,
+  "users": [
+    {
+      "id": "0191a38a-0000-0000-0000-000000000000",
+      "username": "operator@cyart.com",
+      "email": "operator@cyart.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "CyArt",
+      "lastName": "Platform Operator",
+      "realmRoles": [
+        "platform_operator"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000000"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "OperatorSecurePassword2026!",
+          "temporary": false
+        }
+      ]
+    }
+  ],
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,
   "refreshTokenMaxReuse": 0,

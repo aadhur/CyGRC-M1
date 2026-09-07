@@ -38,7 +38,7 @@ services:
     container_name: cygrc-auth
     environment:
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin_password_123 # Fine for local dev; override in prod env
+      KEYCLOAK_ADMIN_PASSWORD: admin_password_123 
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/grc_platform
       KC_DB_USERNAME: grc_user
