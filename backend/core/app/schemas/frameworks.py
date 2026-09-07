@@ -14,3 +14,9 @@ class FrameworkResponse(BaseModel):
 
 class FrameworkListResponse(BaseModel):
     frameworks: list[FrameworkResponse]
+
+
+class FrameworkCreateRequest(BaseModel):
+    code: str
+    version: str
+    name: str
