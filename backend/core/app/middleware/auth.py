@@ -15,39 +15,70 @@ from ..db.session import tenant_id_context
 logger = logging.getLogger("cygrc.auth")
 
 ROLE_SCOPES: dict[str, list[str]] = {
+    "platform_operator": ["operator:admin", "operator:break-glass", "frameworks:read"],
     "tenant_admin": [
         "controls:read",
         "controls:write",
+        "evidence:read",
         "evidence:write",
         "evidence:review",
+        "frameworks:read",
         "auditlog:read",
         "audits:read",
         "audits:write",
+        "audits:export",
         "risks:read",
         "risks:write",
+        "risks:close",
         "dpdp:read",
         "dpdp:write",
         "users:read",
         "users:write",
         "users:delete",
+        "ai:draft",
+        "ai:approve",
     ],
-    "compliance_manager": ["controls:read", "controls:write", "evidence:write"],
+    "compliance_manager": [
+        "controls:read",
+        "controls:write",
+        "evidence:read",
+        "evidence:review",
+        "frameworks:read",
+        "risks:read",
+        "risks:close",
+        "ai:draft",
+        "ai:approve",
+    ],
     "internal_auditor": [
         "controls:read",
-        "evidence:review",
+        "evidence:read",
         "audits:read",
         "audits:write",
+        "audits:export",
+        "frameworks:read",
     ],
-    "risk_owner": ["controls:read", "risks:read", "risks:write", "evidence:write"],
+    "risk_owner": [
+        "controls:read",
+        "risks:read",
+        "risks:write",
+        "evidence:read",
+        "risks:close",
+        "frameworks:read",
+    ],
     "ciso": [
+        "evidence:review",
+        "evidence:read",
         "controls:read",
         "risks:read",
         "audits:read",
         "dpdp:read",
         "auditlog:read",
         "users:read",
+        "frameworks:read",
+        "risks:close",
+        "risks:read",
     ],
-    "dpo": ["dpdp:read", "dpdp:write", "controls:read"],
+    "dpo": ["dpdp:read", "dpdp:write", "controls:read", "ai:draft"],
     "engineering_lead": ["controls:read", "evidence:write"],
     "user": ["controls:read", "evidence:write"],
 }
@@ -190,7 +221,11 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         elif self.app_env == "local":
             test_tenant_header = request.headers.get("X-Test-Tenant-ID")
             test_user_header = request.headers.get("X-Test-User-ID")
-
+            if not test_tenant_header or not test_user_header:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Missing test tenant/user headers."},
+                )
             tenant_id = uuid.UUID(test_tenant_header)
             user_id = uuid.UUID(test_user_header)
             roles = ["tenant_admin"]

@@ -45,7 +45,7 @@ async def list_users(
     if "users:read" not in user_scopes:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Required scope 'users:read' missing.",
+            detail="Forbidden: Required scope missing.",
         )
 
     tenant_id = request.state.tenant_id
@@ -93,6 +93,15 @@ async def invite_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden: Required scope missing.",
+        )
+
+    if (
+        payload.role.value == "tenant_admin"
+        or payload.role.value == "platform_operator"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Can't invite those roles.",
         )
 
     tenant_id = str(request.state.tenant_id)

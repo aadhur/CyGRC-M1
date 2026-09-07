@@ -2,9 +2,8 @@ from app.api.v1.audit_log import router as audit_router
 from app.api.v1.controls import router as controls_router
 from app.api.v1.evidence import router as evidence_router
 from app.api.v1.frameworks import router as frameworks_router
-
-# 2. Import Existing Router
 from app.api.v1.onboard import router as onboard_router
+from app.api.v1.operators import router as operator_router
 from app.api.v1.users import router as user_router
 from app.core.config import settings
 
@@ -50,6 +49,12 @@ app.add_middleware(
 # ------------------------------------------------------------------------------
 # API Routers
 # ------------------------------------------------------------------------------
+
+# Platform Operator
+app.include_router(
+    operator_router, prefix="/v1/operators", tags=["Platform Operations"]
+)
+
 
 # System & Onboarding
 app.include_router(onboard_router)
