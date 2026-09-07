@@ -26,7 +26,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             if tenant_id:
                 # SET LOCAL ensures this setting is wiped clean as soon as this transaction ends.
                 await session.execute(
-                    text("SET LOCAL app.tenant_id = :tenant_id"),
+                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
                     {"tenant_id": str(tenant_id)},
                 )
             yield session

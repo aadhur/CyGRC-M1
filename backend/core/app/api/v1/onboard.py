@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import anyio
+import httpx
 from app.db.models import (
     Control,
     ControlStatus,
@@ -15,7 +16,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas.onboard import OnboardRequest, OnboardResponse
-from app.services.keycloak import provision_user_in_keycloak
+from app.services.keycloak import delete_keycloak_user, provision_user_in_keycloak
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -48,14 +49,21 @@ async def onboard_tenant(
 ):
     tenant_id = uuid7()
     user_id = uuid7()
+    kc_user_id = None
     try:
-        jwt_token = await provision_user_in_keycloak(
+        jwt_token, kc_user_id = await provision_user_in_keycloak(
             email=payload.email,
             password=payload.password,
             tenant_id=str(tenant_id),
-            role=payload.role.value,
+            role="tenant_admin",
         )
-
+    except Exception as e:
+        logger.exception("Failed to provision user in Keycloak")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Identity provider provision failed: {e!s}",
+        ) from e
+    try:
         await db.execute(
             text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
             {"tenant_id": str(tenant_id)},
@@ -75,7 +83,8 @@ async def onboard_tenant(
             user_id=user_id,
             tenant_id=tenant.tenant_id,
             email=payload.email,
-            role=payload.role,
+            role="tenant_admin",
+            kc_user_id=kc_user_id,
             status=UserStatus.active,
         )
         db.add(user)
@@ -94,11 +103,7 @@ async def onboard_tenant(
                     json_code = file_data.get("metadata", {}).get("code")
                     if json_code:
                         code_to_file_map[json_code] = json_file
-                except (
-                    OSError,
-                    json.JSONDecodeError,
-                ) as e:  # Specific exception types (BLE001)
-                    # S112: Log the exception before continuing
+                except (OSError, json.JSONDecodeError) as e:
                     logger.warning(
                         f"Failed to load or parse seed file {json_file}: {e}"
                     )
@@ -116,10 +121,7 @@ async def onboard_tenant(
                 seed_data = await anyio.to_thread.run_sync(
                     load_json_file, code_to_file_map[framework.code]
                 )
-            except (
-                OSError,
-                json.JSONDecodeError,
-            ) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logger.warning(
                     f"Failed to load or parse framework seed file for code {framework.code}: {e}"
                 )
@@ -149,6 +151,14 @@ async def onboard_tenant(
     except SQLAlchemyError as e:
         await db.rollback()
         logger.exception("Onboarding transactional loop failed. Rollback executed.")
+        if kc_user_id:
+            try:
+                await delete_keycloak_user(kc_user_id)
+                logger.info(f"Successfully cleaned up Keycloak user {kc_user_id}")
+            except (HTTPException, httpx.HTTPError) as kc_err:
+                logger.error(
+                    f"CRITICAL: Failed to clean up Keycloak user {kc_user_id}: {kc_err}"
+                )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Onboarding transactional loop failed. Database rolled back: {e!s}",

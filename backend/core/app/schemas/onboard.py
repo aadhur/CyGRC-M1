@@ -1,12 +1,6 @@
-from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr
-
-
-class UserRole(str, Enum):
-    ADMIN = "admin"
-    USER = "user"
 
 
 class OnboardRequest(BaseModel):
@@ -14,7 +8,6 @@ class OnboardRequest(BaseModel):
     plan: str
     email: EmailStr
     password: str
-    role: UserRole = UserRole.USER
 
 
 class OnboardResponse(BaseModel):

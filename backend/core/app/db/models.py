@@ -14,8 +14,14 @@ class Base(DeclarativeBase):
 
 
 class UserRole(str, enum.Enum):
-    ADMIN = "admin"
-    USER = "user"
+    tenant_admin = "tenant_admin"
+    compliance_manager = "compliance_manager"
+    internal_auditor = "internal_auditor"
+    risk_owner = "risk_owner"
+    ciso = "ciso"
+    dpo = "dpo"
+    engineering_lead = "engineering_lead"
+    user = "user"
 
 
 class TenantStatus(str, enum.Enum):
@@ -111,17 +117,23 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(
             UserRole,
-            name="user_role",
+            name="user_role_enum",
             create_type=False,
             values_callable=lambda x: [e.value for e in x],
         ),
         nullable=False,
-        default=UserRole.USER,
+        default=UserRole.user,
     )
 
     sso_subject: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
+    )
+
+    kc_user_id: Mapped[str] = mapped_column(
+        String,
+        unique=True,
+        nullable=False,
     )
 
     tenant: Mapped["Tenant"] = relationship(
