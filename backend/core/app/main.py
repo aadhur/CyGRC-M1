@@ -5,6 +5,7 @@ from app.api.v1.frameworks import router as frameworks_router
 
 # 2. Import Existing Router
 from app.api.v1.onboard import router as onboard_router
+from app.api.v1.users import router as user_router
 from app.core.config import settings
 
 # Audit Middleware intercepts state-changing HTTP requests (#B4.2)
@@ -52,6 +53,8 @@ app.add_middleware(
 
 # System & Onboarding
 app.include_router(onboard_router)
+app.include_router(user_router, prefix="/v1/users", tags=["Users"])
+
 
 # Issue #B4.1: Controls & Frameworks (Squad S1)
 app.include_router(controls_router, prefix="/v1/controls", tags=["Controls"])

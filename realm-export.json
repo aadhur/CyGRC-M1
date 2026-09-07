@@ -47,15 +47,6 @@
   "roles": {
     "realm": [
       {
-        "id": "c297e446-64c0-4f8b-862a-a01d3120ff19",
-        "name": "admin",
-        "description": "",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
         "id": "7b473db3-f452-4610-8c15-ae8a1fdc7145",
         "name": "uma_authorization",
         "description": "${role_uma_authorization}",
@@ -86,9 +77,72 @@
         "attributes": {}
       },
       {
-        "id": "8981629e-1736-4d03-b5ed-37191f44bac9",
+        "id": "16ff1c40-2326-4011-8505-5943f0be91d9",
+        "name": "dpo",
+        "description": "DPDP Data Protection Officer",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "42f23013-f9d4-4f9e-be23-0e5bac5e013a",
+        "name": "engineering_lead",
+        "description": "attaches implementation evidence only",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "d5adf865-dc5b-4964-8a51-76eca1e96adc",
+        "name": "tenant_admin",
+        "description": "Created on onboarding; founding user; full internal control",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "bb461988-4034-48e2-9e4e-36848bf2b219",
+        "name": "compliance_manager",
+        "description": "owns control library, signs off evidence before audit",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "04f72630-1cbb-4207-ae9a-cb5e1633efa8",
+        "name": "internal_auditor",
+        "description": "runs audit cycles, reviews evidence, raises findings",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "f194f053-928c-48fe-b4e5-8c1aee6a43aa",
+        "name": "ciso",
+        "description": "reads everything; no write except approvals",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "cdd079f7-d760-4fb4-a9de-6de0674342a3",
         "name": "user",
-        "description": "",
+        "description": "generic; minimum viable access",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "8266a234-d75e-4bd9-9eba-8b464b51d5ee",
+        "name": "risk_owner",
+        "description": "owns risk register, treatment plans (attaching treatment evidence)",
         "composite": false,
         "clientRole": false,
         "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
@@ -479,12 +533,6 @@
       "roles": [
         "offline_access"
       ]
-    },
-    {
-      "clientScope": "auditlog:read",
-      "roles": [
-        "admin"
-      ]
     }
   ],
   "clientScopeMappings": {
@@ -691,7 +739,7 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "http://localhost:3000/*"
+        "http://localhost:3000/auth/callback"
       ],
       "webOrigins": [
         "*"
@@ -709,6 +757,7 @@
       "attributes": {
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
+        "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false"
       },
@@ -739,8 +788,6 @@
       "defaultClientScopes": [
         "web-origins",
         "acr",
-        "evidence:write",
-        "controls:read",
         "profile",
         "roles",
         "basic",
@@ -750,8 +797,7 @@
         "address",
         "phone",
         "offline_access",
-        "microprofile-jwt",
-        "auditlog:read"
+        "microprofile-jwt"
       ]
     },
     {
@@ -862,16 +908,49 @@
   ],
   "clientScopes": [
     {
-      "id": "d2a57d06-07e9-4009-8298-8274d529a3bf",
-      "name": "evidence:write",
-      "description": "",
+      "id": "95edab82-1d5c-4cd5-8c16-ea8cd8b40a07",
+      "name": "phone",
+      "description": "OpenID Connect built-in scope: phone",
       "protocol": "openid-connect",
       "attributes": {
-        "include.in.token.scope": "false",
-        "display.on.consent.screen": "true",
-        "gui.order": "",
-        "consent.screen.text": ""
-      }
+        "include.in.token.scope": "true",
+        "consent.screen.text": "${phoneScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "36369030-c2dc-47a3-b4b3-3a89190951bc",
+          "name": "phone number verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "phoneNumberVerified",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "phone_number_verified",
+            "jsonType.label": "boolean"
+          }
+        },
+        {
+          "id": "27d8113d-34d7-42fb-b4ef-26df163e978f",
+          "name": "phone number",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "phoneNumber",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "phone_number",
+            "jsonType.label": "String"
+          }
+        }
+      ]
     },
     {
       "id": "f6820d29-3bc7-4bca-9bd3-96d33014e7fc",
@@ -1231,6 +1310,30 @@
       ]
     },
     {
+      "id": "f67f250e-e3af-43d0-8335-920059bb6d7c",
+      "name": "role_list",
+      "description": "SAML role list",
+      "protocol": "saml",
+      "attributes": {
+        "consent.screen.text": "${samlRoleListScopeConsentText}",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "id": "399c9c24-e64a-4454-9206-af085c645a4c",
+          "name": "role list",
+          "protocol": "saml",
+          "protocolMapper": "saml-role-list-mapper",
+          "consentRequired": false,
+          "config": {
+            "single": "false",
+            "attribute.nameformat": "Basic",
+            "attribute.name": "Role"
+          }
+        }
+      ]
+    },
+    {
       "id": "8f7d6b79-8d3e-4432-b220-feb799cb8cce",
       "name": "offline_access",
       "description": "OpenID Connect built-in scope: offline_access",
@@ -1239,6 +1342,50 @@
         "consent.screen.text": "${offlineAccessScopeConsentText}",
         "display.on.consent.screen": "true"
       }
+    },
+    {
+      "id": "894e2efe-581e-4695-80a2-1ac911aff292",
+      "name": "microprofile-jwt",
+      "description": "Microprofile - JWT built-in scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "id": "6611ee9d-26c4-4d05-9051-a2bb3d4af566",
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "multivalued": "true",
+            "user.attribute": "foo",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "feb5145d-e800-4651-abe1-9fbc3037d949",
+          "name": "upn",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "upn",
+            "jsonType.label": "String"
+          }
+        }
+      ]
     },
     {
       "id": "48902824-02b0-4bf5-a6db-6cf85f57b59a",
@@ -1297,143 +1444,6 @@
       ]
     },
     {
-      "id": "0ffc4c30-bf3e-4c82-9bb1-bdf8434cfbb5",
-      "name": "controls:read",
-      "description": "",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "false",
-        "display.on.consent.screen": "true",
-        "gui.order": "",
-        "consent.screen.text": ""
-      }
-    },
-    {
-      "id": "95edab82-1d5c-4cd5-8c16-ea8cd8b40a07",
-      "name": "phone",
-      "description": "OpenID Connect built-in scope: phone",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "consent.screen.text": "${phoneScopeConsentText}",
-        "display.on.consent.screen": "true"
-      },
-      "protocolMappers": [
-        {
-          "id": "36369030-c2dc-47a3-b4b3-3a89190951bc",
-          "name": "phone number verified",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
-            "user.attribute": "phoneNumberVerified",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "phone_number_verified",
-            "jsonType.label": "boolean"
-          }
-        },
-        {
-          "id": "27d8113d-34d7-42fb-b4ef-26df163e978f",
-          "name": "phone number",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
-            "user.attribute": "phoneNumber",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "phone_number",
-            "jsonType.label": "String"
-          }
-        }
-      ]
-    },
-    {
-      "id": "f67f250e-e3af-43d0-8335-920059bb6d7c",
-      "name": "role_list",
-      "description": "SAML role list",
-      "protocol": "saml",
-      "attributes": {
-        "consent.screen.text": "${samlRoleListScopeConsentText}",
-        "display.on.consent.screen": "true"
-      },
-      "protocolMappers": [
-        {
-          "id": "399c9c24-e64a-4454-9206-af085c645a4c",
-          "name": "role list",
-          "protocol": "saml",
-          "protocolMapper": "saml-role-list-mapper",
-          "consentRequired": false,
-          "config": {
-            "single": "false",
-            "attribute.nameformat": "Basic",
-            "attribute.name": "Role"
-          }
-        }
-      ]
-    },
-    {
-      "id": "359f7db3-a763-4103-a32c-f585c6e2a2eb",
-      "name": "auditlog:read",
-      "description": "",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "false",
-        "display.on.consent.screen": "true",
-        "gui.order": "",
-        "consent.screen.text": ""
-      }
-    },
-    {
-      "id": "894e2efe-581e-4695-80a2-1ac911aff292",
-      "name": "microprofile-jwt",
-      "description": "Microprofile - JWT built-in scope",
-      "protocol": "openid-connect",
-      "attributes": {
-        "include.in.token.scope": "true",
-        "display.on.consent.screen": "false"
-      },
-      "protocolMappers": [
-        {
-          "id": "6611ee9d-26c4-4d05-9051-a2bb3d4af566",
-          "name": "groups",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "multivalued": "true",
-            "user.attribute": "foo",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "groups",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "feb5145d-e800-4651-abe1-9fbc3037d949",
-          "name": "upn",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
-            "user.attribute": "username",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "upn",
-            "jsonType.label": "String"
-          }
-        }
-      ]
-    },
-    {
       "id": "39341684-51af-4770-b6d2-68b1289aa584",
       "name": "basic",
       "description": "OpenID Connect scope for add all basic claims to the token",
@@ -1479,16 +1489,13 @@
     "roles",
     "web-origins",
     "acr",
-    "basic",
-    "controls:read",
-    "evidence:write"
+    "basic"
   ],
   "defaultOptionalClientScopes": [
     "offline_access",
     "address",
     "phone",
-    "microprofile-jwt",
-    "auditlog:read"
+    "microprofile-jwt"
   ],
   "browserSecurityHeaders": {
     "contentSecurityPolicyReportOnly": "",

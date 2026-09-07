@@ -14,6 +14,44 @@ from ..db.session import tenant_id_context
 # Set up logging for developers
 logger = logging.getLogger("cygrc.auth")
 
+ROLE_SCOPES: dict[str, list[str]] = {
+    "tenant_admin": [
+        "controls:read",
+        "controls:write",
+        "evidence:write",
+        "evidence:review",
+        "auditlog:read",
+        "audits:read",
+        "audits:write",
+        "risks:read",
+        "risks:write",
+        "dpdp:read",
+        "dpdp:write",
+        "users:read",
+        "users:write",
+        "users:delete",
+    ],
+    "compliance_manager": ["controls:read", "controls:write", "evidence:write"],
+    "internal_auditor": [
+        "controls:read",
+        "evidence:review",
+        "audits:read",
+        "audits:write",
+    ],
+    "risk_owner": ["controls:read", "risks:read", "risks:write", "evidence:write"],
+    "ciso": [
+        "controls:read",
+        "risks:read",
+        "audits:read",
+        "dpdp:read",
+        "auditlog:read",
+        "users:read",
+    ],
+    "dpo": ["dpdp:read", "dpdp:write", "controls:read"],
+    "engineering_lead": ["controls:read", "evidence:write"],
+    "user": ["controls:read", "evidence:write"],
+}
+
 
 class KeycloakAuthMiddleware(BaseHTTPMiddleware):
     """
@@ -64,11 +102,14 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/redoc",
             "/v1/onboard",
+            "/auth/callback",
         ]:
             return await call_next(request)
 
         tenant_id: uuid.UUID | None = None
         user_id: uuid.UUID | None = None
+        roles: list[str] = []
+        scopes: list[str] = []
 
         auth_header = request.headers.get("Authorization")
 
@@ -108,6 +149,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
                 payload_tenant_id = payload.get("tenant_id")
                 payload_user_id = payload.get("sub")
+                payload_roles = payload.get("realm_access", {}).get("roles", [])
 
                 if not payload_tenant_id:
                     return JSONResponse(
@@ -119,6 +161,8 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
                 tenant_id = uuid.UUID(payload_tenant_id)
                 user_id = uuid.UUID(payload_user_id) if payload_user_id else None
+                roles = payload_roles
+                scopes = [s for r in roles for s in ROLE_SCOPES.get(r, [])]
 
             except jwt.ExpiredSignatureError:
                 return JSONResponse(
@@ -149,6 +193,8 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
             tenant_id = uuid.UUID(test_tenant_header)
             user_id = uuid.UUID(test_user_header)
+            roles = ["tenant_admin"]
+            scopes = ROLE_SCOPES["tenant_admin"]
 
         # ── If Both Pri 1 and Pri 2 Fail, Reject Request Immediately ──────────────
         if not tenant_id or not user_id:
@@ -167,6 +213,8 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
         request.state.tenant_id = tenant_id
         request.state.user_id = user_id
+        request.state.roles = roles
+        request.state.scopes = scopes
 
         token_context = tenant_id_context.set(tenant_id)
         try:
