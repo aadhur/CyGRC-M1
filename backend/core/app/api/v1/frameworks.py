@@ -1,3 +1,4 @@
+from app.api.scopes import require_scope
 from app.db.models import Framework
 from app.db.session import get_db
 from app.schemas.frameworks import FrameworkCreateRequest, FrameworkResponse
@@ -15,11 +16,13 @@ http_bearer = HTTPBearer()
 @router.get(
     "/v1/frameworks",
     response_model=list[FrameworkResponse],
-    dependencies=[Depends(http_bearer)],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("frameworks:read")),
+    ],
 )
 async def list_frameworks(
     db: AsyncSession = Depends(get_db),  # noqa: B008
-    # _scope = Depends(lambda: require_scope("controls:read"))
 ):
     """
     Lists all master compliance frameworks supported by the platform.
@@ -34,13 +37,14 @@ async def list_frameworks(
     "/v1/frameworks",
     response_model=FrameworkResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(http_bearer)],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("frameworks:write")),
+    ],
 )
 async def create_framework(
     payload: FrameworkCreateRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
-    # _scope = Depends(lambda: require_scope("operator:admin")),
-    # wire the actual scope check here (blocked on scope-checking mechanism existing)
 ):
     """
     Adds a new framework to the shared master catalog.

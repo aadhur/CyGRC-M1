@@ -14,12 +14,11 @@ from app.db.models import (
     User,
     UserStatus,
 )
-from app.db.session import get_db
+from app.db.session import get_onboard_db
 from app.schemas.onboard import OnboardRequest, OnboardResponse
 from app.services.keycloak import delete_keycloak_user, provision_user_in_keycloak
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid6 import uuid7
 
@@ -45,7 +44,7 @@ def load_json_file(file_path: Path) -> dict[str, Any]:
 )
 async def onboard_tenant(
     payload: OnboardRequest,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
+    db: AsyncSession = Depends(get_onboard_db),  # noqa: B008
 ):
     tenant_id = uuid7()
     user_id = uuid7()
@@ -145,10 +144,7 @@ async def onboard_tenant(
         tenant.status = TenantStatus.active
         await db.commit()
 
-        await db.refresh(tenant)
-        await db.refresh(user)
-
-    except SQLAlchemyError as e:
+    except Exception as e:
         await db.rollback()
         logger.exception("Onboarding transactional loop failed. Rollback executed.")
         if kc_user_id:

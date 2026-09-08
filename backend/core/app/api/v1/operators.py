@@ -1,5 +1,6 @@
 import logging
 
+from app.api.scopes import require_scope
 from app.db.models import Tenant
 from app.db.session import get_db
 from app.schemas.operators import TenantListItem, TenantListResponse
@@ -17,7 +18,10 @@ security_scheme = HTTPBearer()
 @router.get(
     "/tenants",
     response_model=TenantListResponse,
-    dependencies=[Depends(security_scheme)],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("operator:admin")),
+    ],
     status_code=status.HTTP_200_OK,
 )
 async def list_tenants(request: Request, db: AsyncSession = Depends(get_db)):  # noqa: B008
@@ -26,12 +30,6 @@ async def list_tenants(request: Request, db: AsyncSession = Depends(get_db)):  #
     to return a list of all active corporate tenants, their current onboarding
     status, creation date, and subscription plans.
     """
-    user_scopes = getattr(request.state, "scopes", [])
-    if "operator:admin" not in user_scopes:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Required scope missing.",
-        )
 
     try:
         # Execute direct select statement on the tenants registry table

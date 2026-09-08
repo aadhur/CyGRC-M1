@@ -2,33 +2,51 @@ import contextvars
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
+from fastapi import HTTPException, Request, status
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
-# Connects to PostgreSQL running via docker-compose.yml
 DATABASE_URL = (
-    "postgresql+asyncpg://grc_user:grc_local_password_123@localhost:5432/grc_platform"
+    "postgresql+asyncpg://grc_app_test:test_password_123@localhost:5432/grc_platform"
 )
 
 engine = create_async_engine(DATABASE_URL, echo=False)
+
 AsyncSessionLocal = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
 )
 
-# This stores the active tenant UUID for the current async task loop.
-tenant_id_context: contextvars.ContextVar[UUID] = contextvars.ContextVar("tenant_id")
+tenant_id_context: contextvars.ContextVar[UUID | None] = contextvars.ContextVar(
+    "tenant_id",
+    default=None,
+)
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    # Extract tenant_id set by KeycloakAuthMiddleware
+    tenant_id = getattr(request.state, "tenant_id", None) or tenant_id_context.get()
+
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing tenant context in request.",
+        )
+
+    async with AsyncSessionLocal() as session, session.begin():
+        # Start transaction block BEFORE set_config and hold it open during route execution
+        await session.execute(
+            text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(tenant_id)},
+        )
+        yield session
+
+
+async def get_onboard_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-        try:
-            tenant_id = tenant_id_context.get(None)
-            if tenant_id:
-                # SET LOCAL ensures this setting is wiped clean as soon as this transaction ends.
-                await session.execute(
-                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
-                    {"tenant_id": str(tenant_id)},
-                )
-            yield session
-        finally:
-            await session.close()
+        yield session

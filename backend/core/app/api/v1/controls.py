@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from app.api.deps import get_tenant_db
-from app.db.models import Control, Evidence
+from app.api.scopes import require_scope
+from app.db.models import Control, Evidence, User
+from app.db.session import get_db
 from app.schemas.controls import (
     ControlEvidenceResponse,
     ControlPatchRequest,
@@ -9,7 +10,7 @@ from app.schemas.controls import (
     ControlResponse,
     EvidenceItem,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,12 +22,15 @@ http_bearer = HTTPBearer()
 @router.get(
     "/v1/controls",
     response_model=list[ControlResponse],
-    dependencies=[Depends(http_bearer)],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("controls:read")),
+    ],
 )
 async def list_controls(
+    request: Request,
     framework_id: UUID | None = Query(None),  # noqa: B008
-    db: AsyncSession = Depends(get_tenant_db),  # noqa: B008
-    # _scope = Depends(lambda: require_scope("controls:read")),  # wire the actual scope check here
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     """
     List controls. Optional framework_id filters results.
@@ -44,12 +48,14 @@ async def list_controls(
 @router.get(
     "/v1/controls/{control_id}",
     response_model=ControlResponse,
-    dependencies=[Depends(http_bearer)],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("controls:read")),
+    ],
 )
 async def get_control(
     control_id: UUID,
-    db: AsyncSession = Depends(get_tenant_db),  # noqa: B008
-    # _scope = Depends(lambda: require_scope("controls:read")),  # wire the actual scope check here
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     """
     Fetch a single control by id. Returns 404 if not found (including cross-tenant).
@@ -67,19 +73,24 @@ async def get_control(
 @router.patch(
     "/v1/controls/{control_id}",
     response_model=ControlPatchResponse,
-    dependencies=[Depends(http_bearer)],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("controls:write")),
+    ],
 )
 async def patch_control(
     control_id: UUID,
     payload: ControlPatchRequest,
-    db: AsyncSession = Depends(get_tenant_db),  # noqa: B008
-    # _scope = Depends(lambda: require_scope("controls:read")),  # wire the actual scope check here
+    request: Request,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     """
     Update editable metadata (owner/notes) of a specific control.
     RLS must enforce tenant isolation; do NOT filter by tenant_id in Python.
     Returns 404 if not found (including cross-tenant).
     """
+    tenant_id = request.state.tenant_id
+
     stmt = select(Control).where(Control.control_id == control_id)
     result = await db.execute(stmt)
     control = result.scalar_one_or_none()
@@ -91,6 +102,16 @@ async def patch_control(
 
     # Only update fields explicitly provided in the request
     if payload.owner is not None:
+        owner_check = await db.execute(
+            select(User).where(
+                User.user_id == payload.owner,
+                User.tenant_id == tenant_id,
+            )
+        )
+        if owner_check.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=400, detail="owner must be a valid user in this tenant."
+            )
         control.owner = payload.owner
 
     if payload.notes is not None:
@@ -104,12 +125,14 @@ async def patch_control(
 @router.get(
     "/v1/controls/{control_id}/evidence",
     response_model=ControlEvidenceResponse,
-    dependencies=[Depends(http_bearer)],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("evidence:read")),
+    ],
 )
 async def get_control_evidence(
     control_id: UUID,
-    db: AsyncSession = Depends(get_tenant_db),  # noqa: B008
-    # _scope = Depends(lambda: require_scope("evidence:write")),  # wire the actual scope check here
+    db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     """
     List all evidence records linked to a specific control.

@@ -76,7 +76,6 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "users:read",
         "frameworks:read",
         "risks:close",
-        "risks:read",
     ],
     "dpo": ["dpdp:read", "dpdp:write", "controls:read", "ai:draft"],
     "engineering_lead": ["controls:read", "evidence:write"],
@@ -218,33 +217,33 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                 )
 
         # ── Priority 2: Developer Header Fallback (Local Dev Only) ───────────────
-        elif self.app_env == "local":
-            test_tenant_header = request.headers.get("X-Test-Tenant-ID")
-            test_user_header = request.headers.get("X-Test-User-ID")
-            if not test_tenant_header or not test_user_header:
-                return JSONResponse(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={"detail": "Missing test tenant/user headers."},
-                )
-            tenant_id = uuid.UUID(test_tenant_header)
-            user_id = uuid.UUID(test_user_header)
-            roles = ["tenant_admin"]
-            scopes = ROLE_SCOPES["tenant_admin"]
+        # elif self.app_env == "local":
+        #     test_tenant_header = request.headers.get("X-Test-Tenant-ID")
+        #     test_user_header = request.headers.get("X-Test-User-ID")
+        #     if not test_tenant_header or not test_user_header:
+        #         return JSONResponse(
+        #             status_code=status.HTTP_401_UNAUTHORIZED,
+        #             content={"detail": "Missing test tenant/user headers."},
+        #         )
+        #     tenant_id = uuid.UUID(test_tenant_header)
+        #     user_id = uuid.UUID(test_user_header)
+        #     roles = ["tenant_admin"]
+        #     scopes = ROLE_SCOPES["tenant_admin"]
 
-        # ── If Both Pri 1 and Pri 2 Fail, Reject Request Immediately ──────────────
-        if not tenant_id or not user_id:
-            # If in local mode, specify what headers dev can provide
-            if self.app_env == "local":
-                detail_msg = (
-                    "Missing active tenant context. Provide a valid Bearer JWT "
-                    "or include local testing headers: 'X-Test-Tenant-ID' and 'X-Test-User-ID'."
-                )
-            else:
-                detail_msg = "Missing or invalid authorization context. Provide a verified Bearer JWT."
+        # # ── If Both Pri 1 and Pri 2 Fail, Reject Request Immediately ──────────────
+        # if not tenant_id or not user_id:
+        #     # If in local mode, specify what headers dev can provide
+        #     if self.app_env == "local":
+        #         detail_msg = (
+        #             "Missing active tenant context. Provide a valid Bearer JWT "
+        #             "or include local testing headers: 'X-Test-Tenant-ID' and 'X-Test-User-ID'."
+        #         )
+        #     else:
+        #         detail_msg = "Missing or invalid authorization context. Provide a verified Bearer JWT."
 
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": detail_msg}
-            )
+        #     return JSONResponse(
+        #         status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": detail_msg}
+        #     )
 
         request.state.tenant_id = tenant_id
         request.state.user_id = user_id

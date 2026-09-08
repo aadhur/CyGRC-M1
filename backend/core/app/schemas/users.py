@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class InviteRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(examples=["users@example.com"])
     password: str = Field(min_length=8, description="Temporary initial password")
     role: UserRole = Field(
         examples=["compliance_manager"], description="Role assigned to the invited user"

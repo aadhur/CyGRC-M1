@@ -2,6 +2,7 @@ import logging
 from uuid import UUID
 
 import httpx
+from app.api.scopes import require_scope
 from app.db.models import User, UserStatus
 from app.db.session import get_db
 from app.schemas.users import (
@@ -28,26 +29,15 @@ security_scheme = HTTPBearer()
     "",
     response_model=UserListResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(security_scheme)],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("users:read")),
+    ],
 )
 async def list_users(
     request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    # 1. Authorize role
-    user_roles = getattr(request.state, "roles", [])
-    if "tenant_admin" not in user_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Insufficient privileges.",
-        )
-    user_scopes = getattr(request.state, "scopes", [])
-    if "users:read" not in user_scopes:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Required scope missing.",
-        )
-
     tenant_id = request.state.tenant_id
 
     # 2. Query users scoped to tenant_id (RLS filters automatically, explicit filter for safety)
@@ -73,7 +63,10 @@ async def list_users(
     "/invite",
     response_model=InviteResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(security_scheme)],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("users:write")),
+    ],
 )
 async def invite_user(
     request: Request,
@@ -86,13 +79,6 @@ async def invite_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only tenant admins can invite users.",
-        )
-
-    user_scopes = getattr(request.state, "scopes", [])
-    if "users:write" not in user_scopes:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Required scope missing.",
         )
 
     if (
@@ -154,7 +140,10 @@ async def invite_user(
     "/{user_id}",
     response_model=DeleteUserResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(security_scheme)],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("users:delete")),
+    ],
 )
 async def remove_user(
     user_id: UUID,
@@ -167,12 +156,6 @@ async def remove_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only a tenant admin can remove users.",
-        )
-    user_scopes = getattr(request.state, "scopes", [])
-    if "users:delete" not in user_scopes:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: Required scope 'users:delete' missing.",
         )
 
     # 2. Fetch user and verify tenant isolation
