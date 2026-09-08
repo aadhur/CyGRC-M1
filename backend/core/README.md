@@ -64,13 +64,13 @@ curl http://localhost:8000/healthz
 
 ---
 
-### 2. Tenant Onboarding
+## 2. Tenant Onboarding & Identity Provisioning
 
 **Endpoint:** `POST /v1/onboard`
 
-Creates a new tenant and its associated user record in the local database.
+Executes the onboarding flow: provisions the tenant, registers the user/admin in Keycloak, issues an access token, and dynamically seeds the 93 ISO 27001 compliance controls.
 
-#### Using cURL
+### Using cURL
 
 ```bash
 curl -X POST \
@@ -78,45 +78,106 @@ curl -X POST \
   -H 'Accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
-    "name": "Local Test",
-    "plan": "Standard",
-    "email": null
+    "name": "CORP",
+    "plan": "Enterprise",
+    "email": "compliance_admin@acme.com",
+    "password": "SecurePassword123!",
+    "role": "user" 
   }'
 ```
 
-#### Using Swagger UI
+### Using Swagger UI
 
 The API can also be tested through FastAPI's Swagger UI:
 
-`http://localhost:8000/docs`
+Navigate to `http://localhost:8000/docs`, select **POST /v1/onboard**, click **Try it out**, fill in the request body, and click **Execute**.
 
-Open the endpoint, select **Try it out**, provide the request body, and select **Execute**.
-
-#### Successful Response
+### Successful Response
 
 **Status:** `201 Created`
 
 ```json
 {
-  "tenant_id": "0191a38a-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "user_id": "0191a38a-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+  "tenant_id": "01a06817-3432-7468-913d-230901014956",
+  "user_id": "01a06817-3433-762e-bcc7-47dd21e35dd9",
+  "status": "active",
+  "message": "Tenant 'CORP' created and dynamically seeded with active frameworks.",
+  "access_token": "eyJhb..."
 }
 ```
 
-A successful response confirms that the onboarding request was processed and that the corresponding tenant and user records were created.
+### Direct Database Verification (PostgreSQL & RLS)
 
-> **Database Verification (Optional):**
-> To verify the records directly in the local PostgreSQL database, connect to the database container:
->
-> ```bash
-> docker exec -it cygrc-postgres psql -U grc_user -d grc_platform
-> ```
->
-> Then query the created records:
->
-> ```sql
-> SELECT * FROM tenants;
-> SELECT * FROM users;
-> ```
->
-> Type `\q` to exit the PostgreSQL terminal.
+To verify tenant creation, user creation, and the 93 seeded ISO 27001 controls inside PostgreSQL:
+
+1. **Connect to the PostgreSQL container:**
+
+   ```bash
+   docker exec -it cygrc-postgres psql -U grc_user -d grc_platform
+   ```
+
+2. **Verify public tables (Tenants & Users):**
+
+   ```sql
+   SELECT tenant_id, name, status, plan FROM tenants;
+   SELECT user_id, tenant_id, email, role FROM users;
+   ```
+
+3. **Verify Row-Level Security (RLS) isolated controls:**
+   
+   To verify RLS, you should work as a test user:
+
+   ```sql
+    -- 1. Create a clean, non-superuser role
+    CREATE ROLE grc_app_test WITH LOGIN PASSWORD 'test_password_123';
+
+    -- 2. Grant usage on the public schema boundary
+    GRANT USAGE ON SCHEMA public TO grc_app_test;
+
+    -- 3. Explicitly grant transactional privileges to GRC compliance tables
+    GRANT SELECT, INSERT, UPDATE, DELETE ON tenants, users, controls, frameworks, evidence, evidence_requirements TO grc_app_test;
+
+    -- 4. Grant primary key sequence permissions
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO grc_app_test;
+
+    -- 5. Switch to the test user 
+    \c grc_platform grc_app_test
+    (Enter 'test_password_123' if prompted)
+
+   ```
+
+   Because RLS is enforced on `controls`, you must set `app.tenant_id` to match your tenant's ID before querying, and reset it afterward:
+
+   ```sql
+   -- Set tenant context for the session (replace UUID with your actual tenant_id)
+   SET app.tenant_id = '{tenant_id}';
+
+   -- Verify seeded ISO 27001 controls count (should return 93)
+   SELECT count(*) FROM controls;
+
+   -- View sample seeded controls
+   SELECT code, title, status FROM controls LIMIT 5;
+
+   -- Clear tenant context session variable
+   RESET app.tenant_id;
+  
+   -- Checkc controls count again (should return 0 rows)
+   SELECT COUNT(*) FROM controls; 
+   ```
+
+
+4. **Exit the PostgreSQL terminal:**
+
+   ```sql
+   \q
+   ```
+
+### Keycloak Identity Verification
+
+To verify that the administrator user was provisioned inside Keycloak:
+
+1. Access the Keycloak Admin Console at `http://localhost:8080`.
+2. Log in with admin credentials.
+3. Select the `grc-platform` realm from the top-left dropdown.
+4. Navigate to **Users** in the sidebar.
+5. Verify that the user exists and contains the custom user attribute `tenant_id` matching your tenant's UUID.
