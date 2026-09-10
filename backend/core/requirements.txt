@@ -10,3 +10,6 @@ psycopg2-binary==2.9.9
 httpx==0.28.1
 PyJWT==2.13.0
 cryptography==50.0.1
+boto3==1.43.89
+python-multipart==0.0.32
+pydantic_settings==2.15.0

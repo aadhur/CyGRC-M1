@@ -1,6 +1,6 @@
 import logging
 
-from app.api.scopes import require_scope
+from app.api.deps import require_scope
 from app.db.models import Tenant
 from app.db.session import get_db
 from app.schemas.operators import TenantListItem, TenantListResponse

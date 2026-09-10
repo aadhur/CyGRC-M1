@@ -1,13 +1,11 @@
-import json
 import logging
-from pathlib import Path
-from typing import Any
 
-import anyio
 import httpx
+from app.api.deps import load_seed_files
 from app.db.models import (
     Control,
     ControlStatus,
+    EvidenceRequirement,
     Framework,
     Tenant,
     TenantStatus,
@@ -24,15 +22,6 @@ from uuid6 import uuid7
 
 router = APIRouter()
 logger = logging.getLogger("cygrc.onboard")
-
-# ── Thread-Safe File Helper (Prevents ASYNC230) ───────────────────────────
-
-
-def load_json_file(file_path: Path) -> dict[str, Any]:
-    """Helper method to read a JSON file synchronously within an isolated worker thread."""
-    with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
 
 # ── Router ─────────────────────────────────────────────────────────────────
 
@@ -54,7 +43,7 @@ async def onboard_tenant(
             email=payload.email,
             password=payload.password,
             tenant_id=str(tenant_id),
-            role="tenant_admin",
+            role="TENANT_ADMIN",
         )
     except Exception as e:
         logger.exception("Failed to provision user in Keycloak")
@@ -73,7 +62,7 @@ async def onboard_tenant(
             tenant_id=tenant_id,
             name=payload.name,
             plan=payload.plan,
-            status=TenantStatus.provisioning,
+            status=TenantStatus.PROVISIONING,
         )
         db.add(tenant)
         await db.flush()
@@ -82,49 +71,38 @@ async def onboard_tenant(
             user_id=user_id,
             tenant_id=tenant.tenant_id,
             email=payload.email,
-            role="tenant_admin",
+            role="TENANT_ADMIN",
             kc_user_id=kc_user_id,
-            status=UserStatus.active,
+            status=UserStatus.ACTIVE,
         )
         db.add(user)
         await db.flush()
 
-        seeds_dir = Path(__file__).resolve().parents[2] / "seeds"
-        code_to_file_map = {}
+        framework_seed_map = await load_seed_files(
+            "*.json", exclude_pattern="*_requirements.json"
+        )
 
-        if seeds_dir:
-            for json_file in seeds_dir.glob("*.json"):
-                try:
-                    # Offload the blocking read to anyio's worker threads (ASYNC230)
-                    file_data = await anyio.to_thread.run_sync(
-                        load_json_file, json_file
-                    )
-                    json_code = file_data.get("metadata", {}).get("code")
-                    if json_code:
-                        code_to_file_map[json_code] = json_file
-                except (OSError, json.JSONDecodeError) as e:
-                    logger.warning(
-                        f"Failed to load or parse seed file {json_file}: {e}"
-                    )
-                    continue
+        requirement_seed_map = await load_seed_files("*_requirements.json")
 
         # Query the database master frameworks catalogue
         framework_query = await db.execute(select(Framework))
         db_frameworks = framework_query.scalars().all()
 
         for framework in db_frameworks:
-            if framework.code not in code_to_file_map:
+            if framework.code not in framework_seed_map:
                 continue
-            try:
-                # Offload the blocking read to anyio's worker threads (ASYNC230)
-                seed_data = await anyio.to_thread.run_sync(
-                    load_json_file, code_to_file_map[framework.code]
-                )
-            except (OSError, json.JSONDecodeError) as e:
+
+            seed_data = framework_seed_map[framework.code]
+
+            requirement_data = requirement_seed_map.get(framework.code)
+
+            if requirement_data is None:
                 logger.warning(
-                    f"Failed to load or parse framework seed file for code {framework.code}: {e}"
+                    f"No requirement seed file found for framework {framework.code}"
                 )
                 continue
+
+            requirement_config = requirement_data["requirement"]
 
             for ctrl in seed_data.get("controls", []):
                 control = Control(
@@ -135,13 +113,25 @@ async def onboard_tenant(
                     title=ctrl["title"],
                     description=ctrl["description"],
                     owner=user.user_id,
-                    status=ControlStatus.not_assessed,
+                    status=ControlStatus.NOT_ASSESSED,
                     notes=None,
                 )
+
                 db.add(control)
 
+                requirement = EvidenceRequirement(
+                    tenant_id=tenant.tenant_id,
+                    requirement_id=uuid7(),
+                    control_id=control.control_id,
+                    type=requirement_config["type"],
+                    cadence_days=requirement_config["cadence_days"],
+                    description=requirement_config["description"],
+                )
+
+                db.add(requirement)
+
         # Flip status to active and commit atomically
-        tenant.status = TenantStatus.active
+        tenant.status = TenantStatus.ACTIVE
         await db.commit()
 
     except Exception as e:

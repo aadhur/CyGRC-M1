@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.api.scopes import require_scope
+from app.api.deps import require_scope
 from app.db.models import Control, Evidence, User
 from app.db.session import get_db
 from app.schemas.controls import (
@@ -20,7 +20,7 @@ http_bearer = HTTPBearer()
 
 
 @router.get(
-    "/v1/controls",
+    "",
     response_model=list[ControlResponse],
     dependencies=[
         Depends(http_bearer),
@@ -28,7 +28,6 @@ http_bearer = HTTPBearer()
     ],
 )
 async def list_controls(
-    request: Request,
     framework_id: UUID | None = Query(None),  # noqa: B008
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
@@ -46,7 +45,7 @@ async def list_controls(
 
 
 @router.get(
-    "/v1/controls/{control_id}",
+    "/{control_id}",
     response_model=ControlResponse,
     dependencies=[
         Depends(http_bearer),
@@ -89,8 +88,6 @@ async def patch_control(
     RLS must enforce tenant isolation; do NOT filter by tenant_id in Python.
     Returns 404 if not found (including cross-tenant).
     """
-    tenant_id = request.state.tenant_id
-
     stmt = select(Control).where(Control.control_id == control_id)
     result = await db.execute(stmt)
     control = result.scalar_one_or_none()
@@ -105,25 +102,22 @@ async def patch_control(
         owner_check = await db.execute(
             select(User).where(
                 User.user_id == payload.owner,
-                User.tenant_id == tenant_id,
             )
         )
         if owner_check.scalar_one_or_none() is None:
             raise HTTPException(
-                status_code=400, detail="owner must be a valid user in this tenant."
+                status_code=400, detail="Owner must be a valid user in this tenant."
             )
         control.owner = payload.owner
 
     if payload.notes is not None:
         control.notes = payload.notes
 
-    await db.commit()
-
     return ControlPatchResponse(message=f"Control {control_id} successfully updated")
 
 
 @router.get(
-    "/v1/controls/{control_id}/evidence",
+    "/{control_id}/evidence",
     response_model=ControlEvidenceResponse,
     dependencies=[
         Depends(http_bearer),

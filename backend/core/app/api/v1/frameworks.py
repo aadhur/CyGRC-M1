@@ -1,4 +1,4 @@
-from app.api.scopes import require_scope
+from app.api.deps import require_scope
 from app.db.models import Framework
 from app.db.session import get_db
 from app.schemas.frameworks import FrameworkCreateRequest, FrameworkResponse
@@ -14,7 +14,7 @@ http_bearer = HTTPBearer()
 
 
 @router.get(
-    "/v1/frameworks",
+    "",
     response_model=list[FrameworkResponse],
     dependencies=[
         Depends(http_bearer),
@@ -34,7 +34,7 @@ async def list_frameworks(
 
 
 @router.post(
-    "/v1/frameworks",
+    "",
     response_model=FrameworkResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[

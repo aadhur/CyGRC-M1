@@ -2,8 +2,8 @@ import logging
 from uuid import UUID
 
 import httpx
-from app.api.scopes import require_scope
-from app.db.models import User, UserStatus
+from app.api.deps import require_scope
+from app.db.models import User, UserRole, UserStatus
 from app.db.session import get_db
 from app.schemas.users import (
     DeleteUserResponse,
@@ -35,17 +35,11 @@ security_scheme = HTTPBearer()
     ],
 )
 async def list_users(
-    request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    tenant_id = request.state.tenant_id
 
     # 2. Query users scoped to tenant_id (RLS filters automatically, explicit filter for safety)
-    stmt = (
-        select(User)
-        .where(User.tenant_id == tenant_id)
-        .where(User.role != "tenant_admin")
-    )
+    stmt = select(User).where(User.role != "TENANT_ADMIN")
     result = await db.execute(stmt)
     users = result.scalars().all()
 
@@ -74,17 +68,12 @@ async def invite_user(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
     # 1. Authorize role: only tenant_admin allowed
-    user_roles = getattr(request.state, "roles", [])
-    if "tenant_admin" not in user_roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only tenant admins can invite users.",
-        )
+    role = payload.validated_user_role()
 
-    if (
-        payload.role.value == "tenant_admin"
-        or payload.role.value == "platform_operator"
-    ):
+    if role in {
+        UserRole.TENANT_ADMIN,
+        UserRole.PLATFORM_OPERATOR,
+    }:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Forbidden: Can't invite those roles.",
@@ -97,7 +86,7 @@ async def invite_user(
         email=payload.email,
         password=payload.password,
         tenant_id=str(tenant_id),
-        role=payload.role.value,
+        role=role,
     )
 
     try:
@@ -105,13 +94,12 @@ async def invite_user(
             user_id=uuid7(),
             tenant_id=request.state.tenant_id,
             email=payload.email,
-            role=payload.role.value,
+            role=role,
             kc_user_id=kc_user_id,
-            status=UserStatus.active,
+            status=UserStatus.ACTIVE,
         )
         db.add(user)
         await db.commit()
-        await db.refresh(user)
 
     except SQLAlchemyError as e:
         await db.rollback()
@@ -125,13 +113,13 @@ async def invite_user(
                 )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"User created in Keycloak but failed to save locally: {e!s}",
+            detail="User created in Keycloak but failed to save locally",
         ) from e
 
     return InviteResponse(
         user_id=user.user_id,
         email=payload.email,
-        role=payload.role,
+        role=role,
         message=f"{payload.email} invited as {payload.role.value}.",
     )
 
@@ -152,7 +140,7 @@ async def remove_user(
 ):
     # 1. Authorize role: only tenant_admin allowed
     user_roles = getattr(request.state, "roles", [])
-    if "tenant_admin" not in user_roles:
+    if "TENANT_ADMIN" not in user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only a tenant admin can remove users.",
@@ -160,7 +148,7 @@ async def remove_user(
 
     # 2. Fetch user and verify tenant isolation
     user = await db.get(User, user_id)
-    if not user or user.tenant_id != request.state.tenant_id:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found.",

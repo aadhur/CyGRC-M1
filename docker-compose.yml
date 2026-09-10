@@ -1,7 +1,5 @@
 # Starts local development backend: PostgreSQL (Database), Valkey (Cache), Keycloak (Auth), and MinIO (File Storage) 
 
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -14,7 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
       interval: 5s

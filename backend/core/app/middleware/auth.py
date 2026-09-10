@@ -15,8 +15,8 @@ from ..db.session import tenant_id_context
 logger = logging.getLogger("cygrc.auth")
 
 ROLE_SCOPES: dict[str, list[str]] = {
-    "platform_operator": ["operator:admin", "operator:break-glass", "frameworks:read"],
-    "tenant_admin": [
+    "PLATFORM_OPERATOR": ["operator:admin", "operator:break-glass", "frameworks:write"],
+    "TENANT_ADMIN": [
         "controls:read",
         "controls:write",
         "evidence:read",
@@ -38,7 +38,7 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "ai:draft",
         "ai:approve",
     ],
-    "compliance_manager": [
+    "COMPLIANCE_MANAGER": [
         "controls:read",
         "controls:write",
         "evidence:read",
@@ -49,7 +49,7 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "ai:draft",
         "ai:approve",
     ],
-    "internal_auditor": [
+    "INTERNAL_AUDITOR": [
         "controls:read",
         "evidence:read",
         "audits:read",
@@ -57,7 +57,7 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "audits:export",
         "frameworks:read",
     ],
-    "risk_owner": [
+    "RISK_OWNER": [
         "controls:read",
         "risks:read",
         "risks:write",
@@ -65,7 +65,7 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "risks:close",
         "frameworks:read",
     ],
-    "ciso": [
+    "CISO": [
         "evidence:review",
         "evidence:read",
         "controls:read",
@@ -77,9 +77,9 @@ ROLE_SCOPES: dict[str, list[str]] = {
         "frameworks:read",
         "risks:close",
     ],
-    "dpo": ["dpdp:read", "dpdp:write", "controls:read", "ai:draft"],
-    "engineering_lead": ["controls:read", "evidence:write"],
-    "user": ["controls:read", "evidence:write"],
+    "DPO": ["dpdp:read", "dpdp:write", "controls:read", "ai:draft"],
+    "ENGINEERING_LEAD": ["controls:read", "evidence:write"],
+    "USER": ["controls:read", "evidence:write"],
 }
 
 
@@ -101,13 +101,17 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         self.cache_ttl = 300
 
     async def get_public_key(self, kid: str) -> dict[str, Any] | None:
-        """Fetch and cache public keys (JWKS) from the Keycloak server dynamically."""
+        """Fetch and cache public keys (JWKS) from Keycloak dynamically."""
         current_time = time.time()
-        if not self.cached_keys or (
-            current_time - self.keys_last_fetched > self.cache_ttl
-        ):
+        cache_expired = (current_time - self.keys_last_fetched) > self.cache_ttl
+        key_missing = kid not in self.cached_keys
+
+        # Refetch if cache expired OR if a new 'kid' is received
+        if not self.cached_keys or cache_expired or key_missing:
             try:
-                logger.info(f"Fetching fresh JWKS keys from Keycloak: {self.jwks_url}")
+                logger.info(
+                    f"Fetching JWKS keys from Keycloak (Reason: expired={cache_expired}, missing_key={key_missing})"
+                )
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     response = await client.get(self.jwks_url)
                     if response.status_code == 200:
@@ -192,7 +196,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                 tenant_id = uuid.UUID(payload_tenant_id)
                 user_id = uuid.UUID(payload_user_id) if payload_user_id else None
                 roles = payload_roles
-                scopes = [s for r in roles for s in ROLE_SCOPES.get(r, [])]
+                scopes = [s for r in roles for s in ROLE_SCOPES.get(str(r).upper(), [])]
 
             except jwt.ExpiredSignatureError:
                 return JSONResponse(
@@ -215,35 +219,11 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Invalid authentication token."},
                 )
-
-        # ── Priority 2: Developer Header Fallback (Local Dev Only) ───────────────
-        # elif self.app_env == "local":
-        #     test_tenant_header = request.headers.get("X-Test-Tenant-ID")
-        #     test_user_header = request.headers.get("X-Test-User-ID")
-        #     if not test_tenant_header or not test_user_header:
-        #         return JSONResponse(
-        #             status_code=status.HTTP_401_UNAUTHORIZED,
-        #             content={"detail": "Missing test tenant/user headers."},
-        #         )
-        #     tenant_id = uuid.UUID(test_tenant_header)
-        #     user_id = uuid.UUID(test_user_header)
-        #     roles = ["tenant_admin"]
-        #     scopes = ROLE_SCOPES["tenant_admin"]
-
-        # # ── If Both Pri 1 and Pri 2 Fail, Reject Request Immediately ──────────────
-        # if not tenant_id or not user_id:
-        #     # If in local mode, specify what headers dev can provide
-        #     if self.app_env == "local":
-        #         detail_msg = (
-        #             "Missing active tenant context. Provide a valid Bearer JWT "
-        #             "or include local testing headers: 'X-Test-Tenant-ID' and 'X-Test-User-ID'."
-        #         )
-        #     else:
-        #         detail_msg = "Missing or invalid authorization context. Provide a verified Bearer JWT."
-
-        #     return JSONResponse(
-        #         status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": detail_msg}
-        #     )
+        if not tenant_id or not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing or invalid authorization context."},
+            )
 
         request.state.tenant_id = tenant_id
         request.state.user_id = user_id

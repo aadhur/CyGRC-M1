@@ -25,7 +25,7 @@ async def _get_admin_token(client: httpx.AsyncClient) -> str:
 
 
 async def provision_user_in_keycloak(
-    email: str, password: str, tenant_id: str, role: str = "tenant_admin"
+    email: str, password: str, tenant_id: str, role: str = "TENANT_ADMIN"
 ) -> tuple[str, str]:
     """
     Creates a user in Keycloak, assigns their role, and returns (access_token, kc_user_id).

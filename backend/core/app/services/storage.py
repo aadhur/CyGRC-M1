@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import BinaryIO
 from uuid import UUID
@@ -12,6 +13,7 @@ MINIO_SECRET_KEY = os.getenv(
     "minio_local_password_123",
 )
 BUCKET_NAME = os.getenv("MINIO_BUCKET", "cygrc-evidence")
+logger = logging.getLogger(__name__)
 
 
 def get_s3_client():
@@ -74,3 +76,32 @@ def upload_evidence(
     )
 
     return object_key
+
+
+def delete_evidence_from_storage(object_key: str) -> None:
+    """Delete an evidence object from MinIO."""
+    client = get_s3_client()
+
+    client.delete_object(
+        Bucket=BUCKET_NAME,
+        Key=object_key,
+    )
+
+
+def cleanup_evidence_storage(
+    object_key: str,
+    tenant_id: UUID | str,
+    evidence_id: UUID | str,
+) -> None:
+    """Best-effort cleanup of an evidence object after DB failure."""
+    try:
+        delete_evidence_from_storage(object_key)
+    except Exception:
+        logger.exception(
+            "Failed to clean up evidence object after database failure",
+            extra={
+                "tenant_id": str(tenant_id),
+                "evidence_id": str(evidence_id),
+                "blob_s3_key": object_key,
+            },
+        )

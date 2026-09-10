@@ -1,7 +1,6 @@
 {
   "id": "83c95f52-bb97-4690-8882-6c880cb3c996",
   "realm": "cyart-platform",
-  "notBefore": 0,
   "users": [
     {
       "id": "0191a38a-0000-0000-0000-000000000000",
@@ -28,6 +27,7 @@
       ]
     }
   ],
+  "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,
   "refreshTokenMaxReuse": 0,
@@ -103,72 +103,27 @@
         "attributes": {}
       },
       {
-        "id": "16ff1c40-2326-4011-8505-5943f0be91d9",
-        "name": "dpo",
-        "description": "DPDP Data Protection Officer",
+        "id": "0c330085-da29-44b5-a24a-8706303e74e6",
+        "name": "USER",
+        "description": "",
         "composite": false,
         "clientRole": false,
         "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
         "attributes": {}
       },
       {
-        "id": "42f23013-f9d4-4f9e-be23-0e5bac5e013a",
-        "name": "engineering_lead",
-        "description": "attaches implementation evidence only",
+        "id": "fea1da1f-ccb1-457f-9578-71fbcc5f3d91",
+        "name": "PLATFORM_OPERATOR",
+        "description": "",
         "composite": false,
         "clientRole": false,
         "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
         "attributes": {}
       },
       {
-        "id": "d5adf865-dc5b-4964-8a51-76eca1e96adc",
-        "name": "tenant_admin",
-        "description": "Created on onboarding; founding user; full internal control",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "bb461988-4034-48e2-9e4e-36848bf2b219",
-        "name": "compliance_manager",
-        "description": "owns control library, signs off evidence before audit",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "04f72630-1cbb-4207-ae9a-cb5e1633efa8",
-        "name": "internal_auditor",
-        "description": "runs audit cycles, reviews evidence, raises findings",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "f194f053-928c-48fe-b4e5-8c1aee6a43aa",
-        "name": "ciso",
-        "description": "reads everything; no write except approvals",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "cdd079f7-d760-4fb4-a9de-6de0674342a3",
-        "name": "user",
-        "description": "generic; minimum viable access",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "8266a234-d75e-4bd9-9eba-8b464b51d5ee",
-        "name": "risk_owner",
-        "description": "owns risk register, treatment plans (attaching treatment evidence)",
+        "id": "46268abf-e36a-4d6d-ab44-e2ac7e609c98",
+        "name": "DPO",
+        "description": "",
         "composite": false,
         "clientRole": false,
         "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
@@ -178,6 +133,68 @@
         "id": "e845dc98-0fda-4a16-bb73-8f1d5333b6df",
         "name": "offline_access",
         "description": "${role_offline-access}",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "8d7fa4a0-4bf3-4bd8-8697-5af80b332747",
+        "name": "ENGINEERING_LEAD",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "a7c9cc34-7cac-41cf-a8c9-12fe74c039ce",
+        "name": "COMPLIANCE_MANAGER",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "86c125fb-3de9-41f3-964c-469fbb120b10",
+        "name": "INTERNAL_AUDITOR",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "f56a7733-001c-4785-80a1-d2653eb6ddf5",
+        "name": "RISK_OWNER",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "d335497b-ab9e-47d3-84dd-dc1e07b854ad",
+        "name": "TENANT_ADMIN",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "fcb3c68a-d8a4-4d90-9f0e-2b2984534f13",
+        "name": "CISO",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "ab907e99-0b17-46ab-8b0a-44cc175acdbd",
+        "name": "platform_operator",
         "composite": false,
         "clientRole": false,
         "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
@@ -694,7 +711,9 @@
       "publicClient": true,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
-      "attributes": {},
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": false,
       "nodeReRegistrationTimeout": 0,
@@ -733,7 +752,9 @@
       "publicClient": false,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
-      "attributes": {},
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": false,
       "nodeReRegistrationTimeout": 0,
@@ -783,6 +804,7 @@
       "attributes": {
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
+        "post.logout.redirect.uris": "http://localhost:3000/login",
         "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false"
@@ -846,7 +868,9 @@
       "publicClient": false,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
-      "attributes": {},
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": false,
       "nodeReRegistrationTimeout": 0,
@@ -1284,8 +1308,9 @@
           "consentRequired": false,
           "config": {
             "id.token.claim": "true",
+            "access.token.claim": "true",
             "introspection.token.claim": "true",
-            "access.token.claim": "true"
+            "userinfo.token.claim": "true"
           }
         }
       ]
@@ -1388,6 +1413,7 @@
           "config": {
             "introspection.token.claim": "true",
             "multivalued": "true",
+            "userinfo.token.claim": "true",
             "user.attribute": "foo",
             "id.token.claim": "true",
             "access.token.claim": "true",
@@ -1431,8 +1457,8 @@
           "protocolMapper": "oidc-allowed-origins-mapper",
           "consentRequired": false,
           "config": {
-            "introspection.token.claim": "true",
-            "access.token.claim": "true"
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         }
       ]
@@ -1487,8 +1513,9 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "AUTH_TIME",
-            "id.token.claim": "true",
             "introspection.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "auth_time",
             "jsonType.label": "long"
@@ -1593,12 +1620,12 @@
         "config": {
           "allowed-protocol-mapper-types": [
             "oidc-usermodel-attribute-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
             "saml-user-attribute-mapper",
             "oidc-usermodel-property-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
             "oidc-address-mapper",
-            "oidc-full-name-mapper",
             "saml-role-list-mapper",
+            "oidc-full-name-mapper",
             "saml-user-property-mapper"
           ]
         }
@@ -1639,14 +1666,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-attribute-mapper",
-            "oidc-full-name-mapper",
+            "oidc-usermodel-property-mapper",
             "oidc-address-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
+            "saml-user-attribute-mapper",
             "saml-role-list-mapper",
             "saml-user-property-mapper",
-            "oidc-usermodel-property-mapper",
-            "saml-user-attribute-mapper"
+            "oidc-usermodel-attribute-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "oidc-full-name-mapper"
           ]
         }
       }
@@ -2365,13 +2392,18 @@
   "firstBrokerLoginFlow": "first broker login",
   "attributes": {
     "cibaBackchannelTokenDeliveryMode": "poll",
-    "cibaExpiresIn": "120",
     "cibaAuthRequestedUserHint": "login_hint",
-    "oauth2DeviceCodeLifespan": "600",
+    "clientOfflineSessionMaxLifespan": "0",
     "oauth2DevicePollingInterval": "5",
-    "parRequestUriLifespan": "60",
+    "clientSessionIdleTimeout": "0",
+    "clientOfflineSessionIdleTimeout": "0",
     "cibaInterval": "5",
-    "realmReusableOtpCode": "false"
+    "realmReusableOtpCode": "false",
+    "cibaExpiresIn": "120",
+    "oauth2DeviceCodeLifespan": "600",
+    "parRequestUriLifespan": "60",
+    "clientSessionMaxLifespan": "0",
+    "organizationsEnabled": "false"
   },
   "keycloakVersion": "25.0.0",
   "userManagedAccessAllowed": false,

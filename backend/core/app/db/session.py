@@ -14,7 +14,10 @@ DATABASE_URL = (
     "postgresql+asyncpg://grc_app_test:test_password_123@localhost:5432/grc_platform"
 )
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -29,7 +32,6 @@ tenant_id_context: contextvars.ContextVar[UUID | None] = contextvars.ContextVar(
 
 
 async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
-    # Extract tenant_id set by KeycloakAuthMiddleware
     tenant_id = getattr(request.state, "tenant_id", None) or tenant_id_context.get()
 
     if tenant_id is None:
@@ -38,13 +40,17 @@ async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
             detail="Missing tenant context in request.",
         )
 
-    async with AsyncSessionLocal() as session, session.begin():
-        # Start transaction block BEFORE set_config and hold it open during route execution
+    async with AsyncSessionLocal() as session:
         await session.execute(
             text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
             {"tenant_id": str(tenant_id)},
         )
-        yield session
+
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def get_onboard_db() -> AsyncGenerator[AsyncSession, None]:
