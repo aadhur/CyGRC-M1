@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from app.db.models import AuditLog
+from app.db.audit_models import AuditLog
 from app.db.session import get_db
 from app.schemas.audit_log import AuditLogResponse
 from fastapi import APIRouter, Depends, HTTPException, Request, status
