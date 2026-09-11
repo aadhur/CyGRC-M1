@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 set -e
 
 # Uses $APP_DB_USER and $APP_DB_PASSWORD if set, otherwise defaults to local dev credentials

@@ -73,6 +73,15 @@
   "roles": {
     "realm": [
       {
+        "id": "8d7fa4a0-4bf3-4bd8-8697-5af80b332747",
+        "name": "ENGINEERING_LEAD",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
         "id": "7b473db3-f452-4610-8c15-ae8a1fdc7145",
         "name": "uma_authorization",
         "description": "${role_uma_authorization}",
@@ -112,42 +121,6 @@
         "attributes": {}
       },
       {
-        "id": "fea1da1f-ccb1-457f-9578-71fbcc5f3d91",
-        "name": "PLATFORM_OPERATOR",
-        "description": "",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "46268abf-e36a-4d6d-ab44-e2ac7e609c98",
-        "name": "DPO",
-        "description": "",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "e845dc98-0fda-4a16-bb73-8f1d5333b6df",
-        "name": "offline_access",
-        "description": "${role_offline-access}",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
-        "id": "8d7fa4a0-4bf3-4bd8-8697-5af80b332747",
-        "name": "ENGINEERING_LEAD",
-        "description": "",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
-        "attributes": {}
-      },
-      {
         "id": "a7c9cc34-7cac-41cf-a8c9-12fe74c039ce",
         "name": "COMPLIANCE_MANAGER",
         "description": "",
@@ -166,8 +139,26 @@
         "attributes": {}
       },
       {
+        "id": "fea1da1f-ccb1-457f-9578-71fbcc5f3d91",
+        "name": "PLATFORM_OPERATOR",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
         "id": "f56a7733-001c-4785-80a1-d2653eb6ddf5",
         "name": "RISK_OWNER",
+        "description": "",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
+        "attributes": {}
+      },
+      {
+        "id": "46268abf-e36a-4d6d-ab44-e2ac7e609c98",
+        "name": "DPO",
         "description": "",
         "composite": false,
         "clientRole": false,
@@ -193,8 +184,9 @@
         "attributes": {}
       },
       {
-        "id": "ab907e99-0b17-46ab-8b0a-44cc175acdbd",
-        "name": "platform_operator",
+        "id": "e845dc98-0fda-4a16-bb73-8f1d5333b6df",
+        "name": "offline_access",
+        "description": "${role_offline-access}",
         "composite": false,
         "clientRole": false,
         "containerId": "83c95f52-bb97-4690-8882-6c880cb3c996",
@@ -804,7 +796,7 @@
       "attributes": {
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "http://localhost:3000/login",
+        "post.logout.redirect.uris": "+",
         "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false"
@@ -1619,14 +1611,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-attribute-mapper",
             "saml-user-attribute-mapper",
-            "oidc-usermodel-property-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
-            "oidc-address-mapper",
-            "saml-role-list-mapper",
             "oidc-full-name-mapper",
-            "saml-user-property-mapper"
+            "oidc-usermodel-property-mapper",
+            "saml-user-property-mapper",
+            "oidc-usermodel-attribute-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "saml-role-list-mapper",
+            "oidc-address-mapper"
           ]
         }
       },
@@ -1666,14 +1658,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-property-mapper",
-            "oidc-address-mapper",
+            "oidc-full-name-mapper",
             "saml-user-attribute-mapper",
             "saml-role-list-mapper",
-            "saml-user-property-mapper",
-            "oidc-usermodel-attribute-mapper",
+            "oidc-address-mapper",
+            "oidc-usermodel-property-mapper",
             "oidc-sha256-pairwise-sub-mapper",
-            "oidc-full-name-mapper"
+            "oidc-usermodel-attribute-mapper",
+            "saml-user-property-mapper"
           ]
         }
       }
