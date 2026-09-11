@@ -90,24 +90,24 @@ async def get_risk(
                     RiskControl.risk_id == risk.risk_id,
                 )
             )
-        result_controls = conresult.all()
+            result_controls = conresult.all()
 
-        response.append(
-            {
-                "risk_id": risk.risk_id,
-                "title": risk.title,
-                "description": risk.description,
-                "likelihood": risk.likelihood,
-                "impact": risk.impact,
-                "inherent_score": risk.inherent_risk_score,
-                "residual_score": risk.residual_risk_score,
-                "treatment": risk.treatment,
-                "treatment_plan": risk.treatment_plan,
-                "target_close_date": risk.target_close_date,
-                "status": risk.status,
-                "control_ids": result_controls,
-            }
-        )
+            response.append(
+                {
+                    "risk_id": risk.risk_id,
+                    "title": risk.title,
+                    "description": risk.description,
+                    "likelihood": risk.likelihood,
+                    "impact": risk.impact,
+                    "inherent_score": risk.inherent_risk_score,
+                    "residual_score": risk.residual_risk_score,
+                    "treatment": risk.treatment,
+                    "treatment_plan": risk.treatment_plan,
+                    "target_close_date": risk.target_close_date,
+                    "status": risk.status,
+                    "control_ids": result_controls,
+                }
+            )
 
         return response
 
