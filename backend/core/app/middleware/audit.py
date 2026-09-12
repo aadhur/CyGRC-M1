@@ -1,4 +1,6 @@
 import logging
+import re
+import uuid
 
 from app.db.audit_models import AuditLog
 from app.db.session import AsyncSessionLocal
@@ -30,15 +32,17 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         tenant_id = getattr(request.state, "tenant_id", None)
         actor_id = getattr(request.state, "user_id", None)
 
-        if not tenant_id or not actor_id:
+        # Fix: only skip if tenant_id is missing — actor_id is nullable
+        # for automated system actions or service keys
+        if not tenant_id:
             return response
 
-        # Fix: strip version prefix and parse resource + uuid correctly
-        # e.g. /v1/controls/0191a38a-xxxx -> controls::0191a38a-xxxx
+        # Fix: use regex to strip only version segments (v1, v2, etc.)
+        # prevents stripping valid resources like /vendors or /vulnerabilities
         path_parts = [
             p
             for p in request.url.path.strip("/").split("/")
-            if p and not p.startswith("v")  # strip version segments like v1, v2
+            if p and not re.match(r"^v\d+$", p)
         ]
 
         if len(path_parts) >= 2:
@@ -53,14 +57,24 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
         target = f"{resource}::{uuid_part}"
 
+        # Fix: check for existing trace header before generating fallback
+        # ensures request_id maps directly back to the HTTP transaction
+        req_id = getattr(request.state, "request_id", None) or request.headers.get(
+            "x-request-id"
+        )
+        try:
+            req_uuid = uuid.UUID(str(req_id)) if req_id else uuid7()
+        except (ValueError, AttributeError):
+            req_uuid = uuid7()
+
         # Use independent Session B — keeps audit commits separate from
         # route transaction rollback blocks
         async with AsyncSessionLocal() as session:
             try:
-                # Fix: set RLS tenant context so PostgreSQL knows which
-                # tenant is executing this insert
+                # Fix: use app.current_tenant_id to match RLS policy
+                # in 0004_create_audit_tables.py migration
                 await session.execute(
-                    text("SET LOCAL app.tenant_id = :tenant_id"),
+                    text("SET LOCAL app.current_tenant_id = :tenant_id"),
                     {"tenant_id": str(tenant_id)},
                 )
 
@@ -70,7 +84,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                     actor_id=actor_id,
                     action=request.method,
                     target=target,
-                    request_id=uuid7(),
+                    request_id=req_uuid,
                     ip_address=request.client.host if request.client else None,
                     user_agent=request.headers.get("user-agent"),
                 )
@@ -78,7 +92,6 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 await session.commit()
 
             except Exception as e:  # noqa: BLE001
-                # Fix: log the error so pipeline debugging is possible
                 logger.error("AuditLogMiddleware failed to write log entry: %s", str(e))
                 await session.rollback()
 
