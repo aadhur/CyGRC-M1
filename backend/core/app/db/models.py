@@ -803,3 +803,53 @@ class ControlStatusHistory(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+# =============================================================================
+#                           BREAK GLASS SESSION
+# =============================================================================
+
+
+class BreakGlassStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+
+
+class BreakGlassSession(Base):
+    __tablename__ = "break_glass_sessions"
+
+    session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid7
+    )
+    target_tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+
+    requested_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    approved_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    revoked_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+
+    ticket_ref: Mapped[str] = mapped_column(String(50), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+
+    status: Mapped[BreakGlassStatus] = mapped_column(
+        SQLEnum(BreakGlassStatus, name="break_glass_status_enum", create_type=False),
+        nullable=False,
+        default=BreakGlassStatus.PENDING,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
