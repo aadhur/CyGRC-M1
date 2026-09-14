@@ -38,7 +38,9 @@ def upgrade() -> None:
         ),
         sa.Column("action", sa.String(length=10), nullable=False),
         sa.Column("target", sa.String(length=255), nullable=False),
-        sa.Column("request_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column(
+            "request_id", postgresql.UUID(as_uuid=True), nullable=False, index=True
+        ),
         sa.Column("ip_address", sa.String(length=45), nullable=True),
         sa.Column("user_agent", sa.Text(), nullable=True),
         sa.Column(
