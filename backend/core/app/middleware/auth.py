@@ -23,8 +23,8 @@ valkey = redis.Redis(connection_pool=pool)
 # Set up logging for developers
 logger = logging.getLogger("cygrc.auth")
 
-JWKS_CACHE_TTL = 300  # seconds, matches the old in-memory TTL
-RATE_LIMIT_WINDOW = 60  # seconds
+JWKS_CACHE_TTL = 300
+RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX_REQUESTS = 120  # per tenant, per window — tune later
 
 BREAK_GLASS_SCOPES = [
@@ -296,8 +296,6 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                         },
                     )
 
-                # Everything below is the actual grant, only reached if the session
-                # checked out completely.
                 tenant_id = bg_session.target_tenant_id
                 scopes = BREAK_GLASS_SCOPES
                 request.state.break_glass_session_id = bg_session.session_id
