@@ -1,7 +1,7 @@
 """create audit_log table with RLS and immutability hardening
 
-Revision ID: 0004
-Revises: 0003
+Revision ID: 0008
+Revises: 0007
 
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0004"
-down_revision: str | Sequence[str] | None = "0003"
+revision: str = "0008"
+down_revision: str | Sequence[str] | None = "0007"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -38,6 +38,7 @@ def upgrade() -> None:
         ),
         sa.Column("action", sa.String(length=10), nullable=False),
         sa.Column("target", sa.String(length=255), nullable=False),
+        sa.Column("status_code", sa.Integer, nullable=False),
         sa.Column(
             "request_id", postgresql.UUID(as_uuid=True), nullable=False, index=True
         ),
@@ -60,8 +61,8 @@ def upgrade() -> None:
         """
         CREATE POLICY tenant_isolation_audit_log_policy ON audit_log
         FOR ALL
-        USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)
-        WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
+        USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+        WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
         """
     )
 

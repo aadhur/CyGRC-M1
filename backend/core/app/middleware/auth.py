@@ -8,11 +8,11 @@ import httpx
 import jwt
 import redis.asyncio as redis
 from app.core.config import settings
-from app.db.models import BreakGlassSession, BreakGlassStatus
+from app.db.models import BreakGlassSession, BreakGlassStatus, User
 from app.db.session import AsyncSessionLocal, tenant_id_context
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 pool = redis.ConnectionPool.from_url(
@@ -177,6 +177,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
         tenant_id: uuid.UUID | None = None
         user_id: uuid.UUID | None = None
+        kc_user_id: str | None = None
         roles: list[str] = []
         scopes: list[str] = []
 
@@ -217,7 +218,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                 )
 
                 payload_tenant_id = payload.get("tenant_id")
-                payload_user_id = payload.get("sub")
+                payload_kc_user_id = payload.get("sub")
                 payload_roles = payload.get("realm_access", {}).get("roles", [])
 
                 if not payload_tenant_id:
@@ -228,8 +229,16 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                         },
                     )
 
+                if not payload_kc_user_id:
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={
+                            "detail": "Invalid JWT payload. Attribute 'sub' is missing."
+                        },
+                    )
+
                 tenant_id = uuid.UUID(payload_tenant_id)
-                user_id = uuid.UUID(payload_user_id) if payload_user_id else None
+                kc_user_id = payload_kc_user_id
                 roles = payload_roles
                 scopes = [s for r in roles for s in ROLE_SCOPES.get(str(r).upper(), [])]
 
@@ -254,11 +263,46 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Invalid authentication token."},
                 )
-        if not tenant_id or not user_id:
+
+        if not tenant_id or not kc_user_id:
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing or invalid authorization context."},
             )
+
+        if "PLATFORM_OPERATOR" in roles:
+            # Platform operators don't live in the tenant's users table;
+            # use their Keycloak sub directly as their user_id UUID.
+            try:
+                user_id = uuid.UUID(kc_user_id)
+            except (ValueError, TypeError):
+                user_id = uuid.uuid5(uuid.NAMESPACE_OID, kc_user_id)
+        else:
+            async with AsyncSessionLocal() as db:
+                await db.execute(
+                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                    {"tenant_id": str(tenant_id)},
+                )
+                result = await db.execute(
+                    select(User.user_id).where(
+                        User.kc_user_id == kc_user_id,
+                        User.tenant_id == tenant_id,
+                    )
+                )
+                user_id = result.scalar_one_or_none()
+
+            if user_id is None:
+                logger.info(
+                    "AUTH RESOLUTION FAILED: kc_user_id=%s tenant_id=%s",
+                    kc_user_id,
+                    tenant_id,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={
+                        "detail": "Authenticated user is not registered for this tenant."
+                    },
+                )
 
         if "PLATFORM_OPERATOR" in roles:
             bg_session_id_header = request.headers.get("X-Break-Glass-Session")

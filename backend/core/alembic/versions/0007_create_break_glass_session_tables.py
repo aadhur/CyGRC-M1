@@ -1,3 +1,10 @@
+"""create break glass session tables
+
+Revision ID: 0007
+Revises: 0006
+
+"""
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa

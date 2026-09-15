@@ -12,7 +12,7 @@ from app.schemas.operators import (
     TenantListItem,
     TenantListResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -32,7 +32,7 @@ security_scheme = HTTPBearer()
     ],
     status_code=status.HTTP_200_OK,
 )
-async def list_tenants(request: Request, db: AsyncSession = Depends(get_db)):  # noqa: B008
+async def list_tenants(db: AsyncSession = Depends(get_db)):  # noqa: B008
     """
     Queries the global tenants registry table (which lives outside RLS)
     to return a list of all active corporate tenants, their current onboarding
@@ -59,7 +59,10 @@ async def list_tenants(request: Request, db: AsyncSession = Depends(get_db)):  #
 @router.post(
     "/break-glass",
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_scope("operator:break-glass"))],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("operator:break-glass")),
+    ],
 )
 async def request_break_glass(
     payload: BreakGlassRequestSchema,
@@ -89,7 +92,10 @@ async def request_break_glass(
 @router.post(
     "/break-glass/{session_id}/approve",
     response_model=BreakGlassApproveResponse,
-    dependencies=[Depends(require_scope("operator:admin"))],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("operator:break-glass")),
+    ],
 )
 async def approve_break_glass(
     session_id: UUID,
@@ -135,11 +141,7 @@ async def approve_break_glass(
         f"expires={session.expires_at.isoformat()} session={session.session_id}"
     )
 
-    # TODO: real customer notification (PRD requires the tenant admin be
-    # notified within 24 hours). No notification infrastructure exists yet.
-    # The audit log entry above, plus this table itself, is the only record
-    # for now — sufficient for the weekly manual review, not for automatic
-    # customer notification. Do not claim this is sent; it is not.
+    # TODO: real customer notification
 
     return BreakGlassApproveResponse(
         session_id=session.session_id,
@@ -150,7 +152,10 @@ async def approve_break_glass(
 
 @router.post(
     "/break-glass/{session_id}/revoke",
-    dependencies=[Depends(require_scope("operator:admin"))],
+    dependencies=[
+        Depends(security_scheme),
+        Depends(require_scope("operator:break-glass")),
+    ],
 )
 async def revoke_break_glass(
     session_id: UUID,
@@ -158,11 +163,6 @@ async def revoke_break_glass(
     db: AsyncSession = Depends(get_onboard_db),  # noqa: B008
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
-    """
-    FIXED: the original design had no way to end an active session early.
-    A ticket resolving sooner than expected, or anything looking suspicious
-    mid-session, had no path except waiting out the full expiry window.
-    """
     _, revoker_id = tenant_user
 
     result = await db.execute(
@@ -195,12 +195,9 @@ async def revoke_break_glass(
 
 @router.get(
     "/break-glass",
-    dependencies=[Depends(require_scope("operator:admin"))],
+    dependencies=[Depends(security_scheme), Depends(require_scope("operator:admin"))],
 )
 async def list_break_glass_sessions(db: AsyncSession = Depends(get_onboard_db)):  # noqa: B008
-    """For the weekly manual review the PRD requires. No filtering yet
-    beyond returning everything — add pagination once this table has
-    enough rows to matter."""
     result = await db.execute(
         select(BreakGlassSession).order_by(BreakGlassSession.created_at.desc())
     )

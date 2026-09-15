@@ -70,7 +70,7 @@ async def get_control(
 
 
 @router.patch(
-    "/v1/controls/{control_id}",
+    "/{control_id}",
     response_model=ControlPatchResponse,
     dependencies=[
         Depends(http_bearer),

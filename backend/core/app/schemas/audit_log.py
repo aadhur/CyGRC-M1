@@ -11,6 +11,7 @@ class AuditLogItem(BaseModel):
     actor_id: UUID | None = None
     action: str
     target: str
+    status_code: int
     request_id: UUID
     ip_address: str | None = None
     user_agent: str | None = None

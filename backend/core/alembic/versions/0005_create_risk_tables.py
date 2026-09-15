@@ -1,7 +1,7 @@
 """create risk tables
 
-Revision ID: 0006
-Revises: 0005
+Revision ID: 0005
+Revises: 0004
 Create Date: 2026-09-09 18:44:00.000000
 
 """

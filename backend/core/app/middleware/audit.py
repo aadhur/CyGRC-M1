@@ -2,7 +2,7 @@ import logging
 import re
 import uuid
 
-from app.db.audit_models import AuditLog
+from app.db.models import AuditLog
 from app.db.session import AsyncSessionLocal
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -17,25 +17,41 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 
         # Execute request first — allows auth.py to run and inject
         # tenant_id and user_id into request.state before we read them
+
+        if request.url.path in [
+            "/healthz",
+            "/docs",
+            "/openapi.json",
+            "/redoc",
+            "/v1/onboard",
+            "/auth/callback",
+        ]:
+            return await call_next(request)
+
         response = await call_next(request)
 
         # Skip GET requests — read-only, no state change to log
         if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
             return response
 
-        # Only log successful responses
-        if not (200 <= response.status_code < 300):
-            return response
-
         # Safely extract context — prevents AttributeError on public
         # endpoints like /docs or /v1/onboard where auth.py skips state
         tenant_id = getattr(request.state, "tenant_id", None)
-        actor_id = getattr(request.state, "user_id", None)
+        user_id = getattr(request.state, "user_id", None)
+        roles = getattr(request.state, "roles", [])
 
         # Fix: only skip if tenant_id is missing — actor_id is nullable
         # for automated system actions or service keys
         if not tenant_id:
             return response
+
+        # Check platform operator status after request state is populated
+        is_platform_operator = "PLATFORM_OPERATOR" in roles
+
+        if is_platform_operator:
+            log_tenant_id = None
+        else:
+            log_tenant_id = tenant_id
 
         # Fix: use regex to strip only version segments (v1, v2, etc.)
         # prevents stripping valid resources like /vendors or /vulnerabilities
@@ -71,19 +87,21 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         # route transaction rollback blocks
         async with AsyncSessionLocal() as session:
             try:
-                # Fix: use app.current_tenant_id to match RLS policy
+                # Fix: use app.tenant_id to match RLS policy
                 # in 0004_create_audit_tables.py migration
-                await session.execute(
-                    text("SET LOCAL app.current_tenant_id = :tenant_id"),
-                    {"tenant_id": str(tenant_id)},
-                )
+                if log_tenant_id:
+                    await session.execute(
+                        text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                        {"tenant_id": str(tenant_id)},
+                    )
 
                 log = AuditLog(
                     log_id=uuid7(),
-                    tenant_id=tenant_id,
-                    actor_id=actor_id,
+                    tenant_id=log_tenant_id,
+                    actor_id=user_id,
                     action=request.method,
                     target=target,
+                    status_code=response.status_code,
                     request_id=req_uuid,
                     ip_address=request.client.host if request.client else None,
                     user_agent=request.headers.get("user-agent"),
@@ -92,7 +110,6 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 await session.commit()
 
             except Exception as e:  # noqa: BLE001
-                logger.error("AuditLogMiddleware failed to write log entry: %s", str(e))
                 await session.rollback()
-
+                logger.error("AuditLogMiddleware failed to write log entry: %s", str(e))
         return response
