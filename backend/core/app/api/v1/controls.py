@@ -1,15 +1,17 @@
 from uuid import UUID
 
-from app.api.deps import require_scope
+from app.api.deps import get_tenant_and_user, require_scope
 from app.db.models import Control, Evidence, User
 from app.db.session import get_db
 from app.schemas.controls import (
+    ControlCalculateRequest,
     ControlEvidenceResponse,
     ControlPatchRequest,
     ControlPatchResponse,
     ControlResponse,
     EvidenceItem,
 )
+from app.services.compliance_engine import recalculate_tenant_controls
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer
 from sqlalchemy import select
@@ -44,6 +46,43 @@ async def list_controls(
     return controls
 
 
+@router.post(
+    "/calculate",
+    response_model=list[ControlResponse],
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("controls:write")),
+    ],
+)
+async def calculate_controls(
+    payload: ControlCalculateRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    """
+    Recalculate compliance status for one control or all controls
+    belonging to the current tenant.
+
+    RLS enforces tenant isolation. No tenant_id filter is applied
+    to the control query in Python.
+    """
+    tenant_id, _user_id = get_tenant_and_user(request)
+
+    try:
+        controls = await recalculate_tenant_controls(
+            db=db,
+            tenant_id=tenant_id,
+            control_id=payload.control_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Control not found.",
+        ) from exc
+
+    return controls
+
+
 @router.get(
     "/{control_id}",
     response_model=ControlResponse,
@@ -62,10 +101,12 @@ async def get_control(
     stmt = select(Control).where(Control.control_id == control_id)
     result = await db.execute(stmt)
     control = result.scalar_one_or_none()
+
     if control is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Control not found."
         )
+
     return control
 
 
@@ -104,16 +145,21 @@ async def patch_control(
                 User.user_id == payload.owner,
             )
         )
+
         if owner_check.scalar_one_or_none() is None:
             raise HTTPException(
-                status_code=400, detail="Owner must be a valid user in this tenant."
+                status_code=400,
+                detail="Owner must be a valid user in this tenant.",
             )
+
         control.owner = payload.owner
 
     if payload.notes is not None:
         control.notes = payload.notes
 
-    return ControlPatchResponse(message=f"Control {control_id} successfully updated")
+    return ControlPatchResponse(
+        message=f"Control {control_id} successfully updated"
+    )
 
 
 @router.get(
@@ -141,7 +187,8 @@ async def get_control_evidence(
 
     if control is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Control not found."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Control not found.",
         )
 
     # Fetch evidence — RLS auto-filters by tenant
