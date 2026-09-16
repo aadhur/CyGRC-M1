@@ -113,6 +113,8 @@ async def patch_control(
     if payload.notes is not None:
         control.notes = payload.notes
 
+    await db.commit()
+
     return ControlPatchResponse(message=f"Control {control_id} successfully updated")
 
 
