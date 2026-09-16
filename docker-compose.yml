@@ -63,8 +63,14 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   cygrc-storage-setup:
-    image: quay.io/minio/mc:latest
+    image: minio/mc:latest
     container_name: cygrc-storage-setup
     depends_on:
       - minio
@@ -81,6 +87,30 @@ services:
       mc anonymous set download local/cygrc-evidence;
       echo 'cygrc-evidence bucket is ready.';
       "
+  backend:
+    build: ./backend/core  
+    ports:
+      - "8000:8000"
+    environment:
+    
+      - VALKEY_URL=redis://valkey:6379/0
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - DATABASE_URL=postgresql+asyncpg://grc_app_test:test_password_123@postgres:5432/grc_platform
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minio_local_admin
+      - MINIO_SECRET_KEY=minio_local_password_123
+      - MINIO_BUCKET=cygrc-evidence
+      - KEYCLOAK_ADMIN_USER=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin_password_123
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
 
 volumes:
   pgdata:
