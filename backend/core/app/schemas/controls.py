@@ -89,8 +89,6 @@ class ControlCalculateRequest(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "example": {
-                "control_id": "0191a38a-0000-0000-0000-000000000010"
-            }
+            "example": {"control_id": "0191a38a-0000-0000-0000-000000000010"}
         }
     }
