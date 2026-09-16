@@ -13,3 +13,4 @@ cryptography==50.0.1
 boto3==1.43.89
 python-multipart==0.0.32
 pydantic_settings==2.15.0
+redis[hiredis]>=5.0

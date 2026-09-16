@@ -4,18 +4,42 @@
   "users": [
     {
       "id": "0191a38a-0000-0000-0000-000000000000",
-      "username": "operator@cyart.com",
-      "email": "operator@cyart.com",
+      "username": "operator1@cyart.com",
+      "email": "operator1@cyart.com",
       "enabled": true,
       "emailVerified": true,
       "firstName": "CyArt",
       "lastName": "Platform Operator",
       "realmRoles": [
-        "platform_operator"
+        "PLATFORM_OPERATOR"
       ],
       "attributes": {
         "tenant_id": [
           "00000000-0000-0000-0000-000000000000"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "OperatorSecurePassword2026!",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "0191a38a-0000-0000-0000-000000000001",
+      "username": "operator2@cyart.com",
+      "email": "operator2@cyart.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "CyArt",
+      "lastName": "Platform Operator",
+      "realmRoles": [
+        "PLATFORM_OPERATOR"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000001"
         ]
       },
       "credentials": [

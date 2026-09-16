@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     APP_ENV: str = "local"
+    VALKEY_URL: str = "redis://127.0.0.1:6379/0"
 
     # CORS Configurations
     # Accepts a JSON array string in env (e.g. '["https://app.domain.com"]') or defaults to list

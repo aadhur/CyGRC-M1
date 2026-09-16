@@ -111,7 +111,7 @@ async def get_control(
 
 
 @router.patch(
-    "/v1/controls/{control_id}",
+    "/{control_id}",
     response_model=ControlPatchResponse,
     dependencies=[
         Depends(http_bearer),
@@ -157,9 +157,9 @@ async def patch_control(
     if payload.notes is not None:
         control.notes = payload.notes
 
-    return ControlPatchResponse(
-        message=f"Control {control_id} successfully updated"
-    )
+    await db.commit()
+
+    return ControlPatchResponse(message=f"Control {control_id} successfully updated")
 
 
 @router.get(

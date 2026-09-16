@@ -1,21 +1,47 @@
+import json
 import logging
-import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 import jwt
+import redis.asyncio as redis
+from app.core.config import settings
+from app.db.models import BreakGlassSession, BreakGlassStatus, User
+from app.db.session import AsyncSessionLocal, tenant_id_context
 from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import select, text
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..db.session import tenant_id_context
+pool = redis.ConnectionPool.from_url(
+    settings.VALKEY_URL, decode_responses=True, max_connections=20
+)
+valkey = redis.Redis(connection_pool=pool)
 
 # Set up logging for developers
 logger = logging.getLogger("cygrc.auth")
 
+JWKS_CACHE_TTL = 300
+RATE_LIMIT_WINDOW = 60
+RATE_LIMIT_MAX_REQUESTS = 120  # per tenant, per window — tune later
+
+BREAK_GLASS_SCOPES = [
+    "controls:read",
+    "evidence:read",
+    "risks:read",
+    "audits:read",
+    "auditlog:read",
+]
+
 ROLE_SCOPES: dict[str, list[str]] = {
-    "PLATFORM_OPERATOR": ["operator:admin", "operator:break-glass", "frameworks:write"],
+    "PLATFORM_OPERATOR": [
+        "operator:admin",
+        "operator:break-glass",
+        "frameworks:read",
+        "frameworks:write",
+    ],
     "TENANT_ADMIN": [
         "controls:read",
         "controls:write",
@@ -96,40 +122,49 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.jwks_url = keycloak_jwks_url
         self.app_env = app_env.strip().lower()
-        self.cached_keys: dict[str, Any] = {}
-        self.keys_last_fetched: float = 0
-        self.cache_ttl = 300
 
     async def get_public_key(self, kid: str) -> dict[str, Any] | None:
-        """Fetch and cache public keys (JWKS) from Keycloak dynamically."""
-        current_time = time.time()
-        cache_expired = (current_time - self.keys_last_fetched) > self.cache_ttl
-        key_missing = kid not in self.cached_keys
+        """Valkey-backed replacement for the old in-memory dict."""
+        cache_key = f"jwks:{kid}"
+        cached = await valkey.get(cache_key)
+        if cached:
+            return json.loads(cached)
+        try:
+            logger.info(f"Fetching fresh JWKS keys from Keycloak: {self.jwks_url}")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(self.jwks_url)
+                if response.status_code != 200:
+                    logger.error(
+                        f"Failed to fetch JWKS keys. Status: {response.status_code}"
+                    )
+                    return None
+                jwks = response.json()
+                pipe = valkey.pipeline()
+                for key in jwks.get("keys", []):
+                    pipe.setex(f"jwks:{key['kid']}", JWKS_CACHE_TTL, json.dumps(key))
+                await pipe.execute()
+        except Exception:
+            logger.exception("Network error contacting Keycloak JWKS")
+            return None
 
-        # Refetch if cache expired OR if a new 'kid' is received
-        if not self.cached_keys or cache_expired or key_missing:
-            try:
-                logger.info(
-                    f"Fetching JWKS keys from Keycloak (Reason: expired={cache_expired}, missing_key={key_missing})"
-                )
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    response = await client.get(self.jwks_url)
-                    if response.status_code == 200:
-                        jwks = response.json()
-                        self.cached_keys = {
-                            key["kid"]: key for key in jwks.get("keys", [])
-                        }
-                        self.keys_last_fetched = current_time
-                    else:
-                        logger.error(
-                            f"Failed to fetch JWKS keys. Status: {response.status_code}"
-                        )
-            except Exception:
-                logger.exception("Network error contacting Keycloak JWKS")
+        cached = await valkey.get(cache_key)
+        return json.loads(cached) if cached else None
 
-        return self.cached_keys.get(kid)
+    async def check_rate_limit(self, identifier: str) -> bool:
+        """Returns True if the request should proceed, False if rate-limited."""
+        key = f"ratelimit:{identifier}"
+        count = await valkey.incr(key)
+        if count == 1:
+            await valkey.expire(key, RATE_LIMIT_WINDOW)
+        return count <= RATE_LIMIT_MAX_REQUESTS
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        client_ip = request.client.host if request.client else "unknown"
+        if not await self.check_rate_limit(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Try again shortly."},
+            )
         if request.url.path in [
             "/healthz",
             "/docs",
@@ -142,6 +177,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
         tenant_id: uuid.UUID | None = None
         user_id: uuid.UUID | None = None
+        kc_user_id: str | None = None
         roles: list[str] = []
         scopes: list[str] = []
 
@@ -182,7 +218,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                 )
 
                 payload_tenant_id = payload.get("tenant_id")
-                payload_user_id = payload.get("sub")
+                payload_kc_user_id = payload.get("sub")
                 payload_roles = payload.get("realm_access", {}).get("roles", [])
 
                 if not payload_tenant_id:
@@ -193,8 +229,16 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                         },
                     )
 
+                if not payload_kc_user_id:
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={
+                            "detail": "Invalid JWT payload. Attribute 'sub' is missing."
+                        },
+                    )
+
                 tenant_id = uuid.UUID(payload_tenant_id)
-                user_id = uuid.UUID(payload_user_id) if payload_user_id else None
+                kc_user_id = payload_kc_user_id
                 roles = payload_roles
                 scopes = [s for r in roles for s in ROLE_SCOPES.get(str(r).upper(), [])]
 
@@ -219,11 +263,92 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Invalid authentication token."},
                 )
-        if not tenant_id or not user_id:
+
+        if not tenant_id or not kc_user_id:
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing or invalid authorization context."},
             )
+
+        if "PLATFORM_OPERATOR" in roles:
+            # Platform operators don't live in the tenant's users table;
+            # use their Keycloak sub directly as their user_id UUID.
+            try:
+                user_id = uuid.UUID(kc_user_id)
+            except (ValueError, TypeError):
+                user_id = uuid.uuid5(uuid.NAMESPACE_OID, kc_user_id)
+        else:
+            async with AsyncSessionLocal() as db:
+                await db.execute(
+                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                    {"tenant_id": str(tenant_id)},
+                )
+                result = await db.execute(
+                    select(User.user_id).where(
+                        User.kc_user_id == kc_user_id,
+                        User.tenant_id == tenant_id,
+                    )
+                )
+                user_id = result.scalar_one_or_none()
+
+            if user_id is None:
+                logger.info(
+                    "AUTH RESOLUTION FAILED: kc_user_id=%s tenant_id=%s",
+                    kc_user_id,
+                    tenant_id,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={
+                        "detail": "Authenticated user is not registered for this tenant."
+                    },
+                )
+
+        if "PLATFORM_OPERATOR" in roles:
+            bg_session_id_header = request.headers.get("X-Break-Glass-Session")
+            if bg_session_id_header:
+                try:
+                    bg_session_uuid = uuid.UUID(bg_session_id_header)
+                except ValueError:
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "detail": "X-Break-Glass-Session header is not a valid UUID."
+                        },
+                    )
+
+                async with AsyncSessionLocal() as bg_db:
+                    result = await bg_db.execute(
+                        select(BreakGlassSession).where(
+                            BreakGlassSession.session_id == bg_session_uuid
+                        )
+                    )
+                    bg_session = result.scalar_one_or_none()
+
+                now = datetime.now(timezone.utc)
+                if (
+                    bg_session is None
+                    or bg_session.requested_by != user_id
+                    or bg_session.status != BreakGlassStatus.ACTIVE
+                    or bg_session.expires_at is None
+                    or bg_session.expires_at < now
+                ):
+                    return JSONResponse(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        content={
+                            "detail": "Break-glass session is invalid, not yours, expired, or not active."
+                        },
+                    )
+
+                tenant_id = bg_session.target_tenant_id
+                scopes = BREAK_GLASS_SCOPES
+                request.state.break_glass_session_id = bg_session.session_id
+                request.state.break_glass_ticket = bg_session.ticket_ref
+
+                logger.warning(
+                    f"BREAK-GLASS REQUEST: operator={user_id} tenant={tenant_id} "
+                    f"ticket={bg_session.ticket_ref} path={request.url.path}"
+                )
 
         request.state.tenant_id = tenant_id
         request.state.user_id = user_id

@@ -1,7 +1,7 @@
 """create audit tables
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0006
+Revises: 0005
 Create Date: 2026-09-09 21:00:00.000000
 
 """

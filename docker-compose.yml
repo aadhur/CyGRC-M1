@@ -64,7 +64,7 @@ services:
     volumes:
       - miniodata:/data
   cygrc-storage-setup:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: cygrc-storage-setup
     depends_on:
       - minio
