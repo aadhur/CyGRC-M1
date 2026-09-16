@@ -53,3 +53,38 @@ class GetRiskResponse(BaseModel):
 
 
 GetListRiskResponse = list[GetRiskResponse]
+
+
+class RiskPatchRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    likelihood: int | None = None
+    impact: int | None = None
+    treatment: str | None = None
+    treatment_plan: str | None = None
+    target_close_date: datetime | None = None
+    status: str | None = None
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "treatment_plan": "Rotate access keys quarterly.",
+                "status": "In Progress",
+            }
+        }
+    }
+
+
+class RiskPatchResponse(BaseModel):
+    risk_id: UUID
+    message: str
+
+
+class RiskCloseRequest(BaseModel):
+    status: str  # "CLOSED" or "ACCEPTED"
+
+
+class RiskCloseResponse(BaseModel):
+    risk_id: UUID
+    status: str
+    message: str
