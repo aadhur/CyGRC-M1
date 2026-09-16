@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "code": "ISO27001:2022",
+    "name": "ISO/IEC 27001:2022 Information Security",
+    "version": "2022"
+  },
+  "requirement": {
+    "type": "document",
+    "cadence_days": 365,
+    "description": "Any evidence artefact uploaded and approved for this control."
+  }
+}
