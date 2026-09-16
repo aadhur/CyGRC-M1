@@ -23,8 +23,17 @@ class TenantListResponse(BaseModel):
 class BreakGlassRequestSchema(BaseModel):
     target_tenant_id: UUID = Field(..., description="The tenant needing support")
     # "INC-90145", "SR-4421", "PROJ-123" etc: letters, a dash, 3-10 digits.
-    ticket_ref: str = Field(..., pattern=r"^[A-Z]+-[0-9]{3,10}$")
-    reason: str = Field(..., min_length=10, max_length=500)
+    ticket_ref: str = Field(
+        ...,
+        pattern=r"^[A-Z]+-[0-9]{3,10}$",
+        examples=["INC-90145"],
+    )
+    reason: str = Field(
+        ...,
+        min_length=10,
+        max_length=500,
+        examples=["Production support required"],
+    )
     duration_hours: int = Field(default=2, ge=1, le=8)
 
 
