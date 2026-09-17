@@ -1,6 +1,7 @@
 from app.api.v1.audit_log import router as log_audit_router
 from app.api.v1.audits import router as audit_router
 from app.api.v1.controls import router as controls_router
+from app.api.v1.dpdp import router as dpdp_router
 from app.api.v1.evidence import router as evidence_router
 from app.api.v1.frameworks import router as frameworks_router
 from app.api.v1.onboard import router as onboard_router
@@ -58,6 +59,7 @@ app.include_router(evidence_router, prefix="/v1/evidence", tags=["Evidence"])
 app.include_router(log_audit_router, prefix="/v1/audit-log", tags=["Audit Log"])
 app.include_router(risk_router, prefix="/v1/risks", tags=["Risks"])
 app.include_router(audit_router, prefix="/v1/audits", tags=["Audits"])
+app.include_router(dpdp_router, prefix="/dpdp/breach-clock", tags=["DPDP Breach Clock"])
 
 
 @app.get("/healthz", tags=["Health"])
