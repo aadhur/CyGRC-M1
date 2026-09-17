@@ -9,6 +9,7 @@ from app.db.models import (
     EvidenceRequirement,
     Finding,
     FindingStatusEnum,
+    ReviewStatus,
 )
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -131,7 +132,7 @@ async def calculate_control_status(
             .where(
                 Evidence.control_id == control_id,
                 Evidence.requirement_id == req.requirement_id,
-                Evidence.review_status == "APPROVED",  # Must be exact string
+                Evidence.review_status == ReviewStatus.APPROVED,  # Must be exact string
             )
             .order_by(Evidence.collected_at.desc())
             .limit(1)
@@ -185,42 +186,6 @@ async def calculate_control_status(
     return (old_status, new_status)
 
 
-def control_status_to_history_string(status: ControlStatus) -> str:
-    """
-    Convert ControlStatus enum to control_status_history table string format.
-
-    The control_status_history table uses title-case strings like "Passing"
-    and "In Remediation", while the Control.status field uses the ControlStatus
-    enum with values like PASSING and IN_REMEDIATION.
-
-    This helper ensures consistent string format when writing to the history table.
-
-    Args:
-        status: ControlStatus enum member
-
-    Returns:
-        Title-case string suitable for control_status_history table
-
-    Example:
-        >>> control_status_to_history_string(ControlStatus.PASSING)
-        'Passing'
-        >>> control_status_to_history_string(ControlStatus.IN_REMEDIATION)
-        'In Remediation'
-
-    Note:
-        This is used by Manish's recalculate_tenant_controls() function
-        when inserting rows into control_status_history.
-    """
-    mapping = {
-        ControlStatus.NOT_ASSESSED: "Not Assessed",
-        ControlStatus.PASSING: "Passing",
-        ControlStatus.FAILING: "Failing",
-        ControlStatus.STALE: "Stale",
-        ControlStatus.IN_REMEDIATION: "In Remediation",
-    }
-    return mapping[status]
-
-
 async def recalculate_tenant_controls(
     db: AsyncSession,
     tenant_id: UUID,
@@ -257,8 +222,8 @@ async def recalculate_tenant_controls(
                 history_id=uuid4(),
                 control_id=control.control_id,
                 tenant_id=tenant_id,
-                old_status=control_status_to_history_string(old_status),
-                new_status=control_status_to_history_string(new_status),
+                old_status=old_status,
+                new_status=new_status,
             )
             db.add(history)
 

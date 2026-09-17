@@ -777,11 +777,11 @@ class ControlStatusHistory(Base):
     )
     old_status: Mapped[str | None] = mapped_column(
         SQLEnum(
-            "Not Assessed",
-            "Passing",
-            "Failing",
-            "Stale",
-            "In Remediation",
+            "PASSING",
+            "FAILING",
+            "STALE",
+            "NOT_ASSESSED",
+            "IN_REMEDIATION",
             name="control_status_enum",
             create_type=False,
         ),
@@ -789,11 +789,11 @@ class ControlStatusHistory(Base):
     )
     new_status: Mapped[str] = mapped_column(
         SQLEnum(
-            "Not Assessed",
-            "Passing",
-            "Failing",
-            "Stale",
-            "In Remediation",
+            "PASSING",
+            "FAILING",
+            "STALE",
+            "NOT_ASSESSED",
+            "IN_REMEDIATION",
             name="control_status_enum",
             create_type=False,
         ),

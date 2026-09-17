@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from app.db.models import RiskTreatmentEnum
+from app.db.models import RiskStatusEnum, RiskTreatmentEnum
 from pydantic import BaseModel, Field
 
 
@@ -49,6 +49,7 @@ class GetRiskResponse(BaseModel):
     treatment: RiskTreatmentEnum | None = None
     treatment_plan: str | None = None
     target_close_date: datetime | None = None
+    status: RiskStatusEnum
     control_ids: list[UUID] = Field(default_factory=list)
 
 
@@ -61,15 +62,15 @@ class RiskPatchRequest(BaseModel):
     likelihood: int | None = None
     impact: int | None = None
     treatment: str | None = None
-    treatment_plan: str | None = None
+    treatment_plan: str
     target_close_date: datetime | None = None
-    status: str | None = None
+    status: RiskStatusEnum
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "treatment_plan": "Rotate access keys quarterly.",
-                "status": "In Progress",
+                "status": "OPEN",
             }
         }
     }
@@ -81,10 +82,10 @@ class RiskPatchResponse(BaseModel):
 
 
 class RiskCloseRequest(BaseModel):
-    status: str  # "CLOSED" or "ACCEPTED"
+    status: RiskStatusEnum  # "CLOSED" or "ACCEPTED"
 
 
 class RiskCloseResponse(BaseModel):
     risk_id: UUID
-    status: str
+    status: RiskStatusEnum
     message: str

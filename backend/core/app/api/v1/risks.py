@@ -93,16 +93,18 @@ async def get_risk(
     try:
         result = await db.scalars(select(Risk))
         risks = result.all()
+
+        risk_controls_result = await db.execute(
+            select(RiskControl.risk_id, RiskControl.control_id)
+        )
+
+        controls_by_risk = {}
+        for risk_id, control_id in risk_controls_result.all():
+            controls_by_risk.setdefault(risk_id, []).append(control_id)
+
         response = []
 
         for risk in risks:
-            conresult = await db.scalars(
-                select(RiskControl.control_id).where(
-                    RiskControl.risk_id == risk.risk_id,
-                )
-            )
-            result_controls = conresult.all()
-
             response.append(
                 {
                     "risk_id": risk.risk_id,
@@ -116,7 +118,7 @@ async def get_risk(
                     "treatment_plan": risk.treatment_plan,
                     "target_close_date": risk.target_close_date,
                     "status": risk.status,
-                    "control_ids": result_controls,
+                    "control_ids": controls_by_risk.get(risk.risk_id, []),
                 }
             )
 
@@ -125,13 +127,13 @@ async def get_risk(
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not get risks.",
         )
 
 
 @router.patch(
-    "/v1/risks/{risk_id}",
+    "/{risk_id}",
     response_model=RiskPatchResponse,
     dependencies=[Depends(http_bearer), Depends(require_scope("risks:write"))],
 )
@@ -146,8 +148,6 @@ async def patch_risk(
     RLS enforces tenant isolation automatically, no manual tenant_id
     filtering in the query below.
     """
-    _tenant_id, _user_id = tenant_user
-
     stmt = select(Risk).where(Risk.risk_id == risk_id)
     result = await db.execute(stmt)
     risk = result.scalar_one_or_none()
@@ -159,6 +159,16 @@ async def patch_risk(
 
     # Only update fields explicitly provided in the request
     update_data = payload.model_dump(exclude_unset=True)
+
+    if "status" in update_data and update_data["status"] in (
+        RiskStatusEnum.CLOSED.value,
+        RiskStatusEnum.ACCEPTED.value,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Risks can't be closed or accepted here.",
+        )
+
     for field, value in update_data.items():
         setattr(risk, field, value)
 
@@ -174,16 +184,15 @@ async def patch_risk(
 
 
 @router.post(
-    "/v1/risks/{risk_id}/close",
+    "/{risk_id}/close",
     response_model=RiskCloseResponse,
     dependencies=[Depends(http_bearer), Depends(require_scope("risks:close"))],
 )
 async def close_risk(
     risk_id: UUID,
-    payload: RiskCloseRequest,
     request: Request,
+    payload: RiskCloseRequest,
     db: AsyncSession = Depends(get_db),  # noqa: B008
-    tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
     """
     Close (or accept) a risk. Two business rules gate this:
@@ -192,8 +201,6 @@ async def close_risk(
          (checked directly against request.state.roles, not scopes) may
          close it.
     """
-    _tenant_id, _user_id = tenant_user
-
     if payload.status not in (
         RiskStatusEnum.CLOSED.value,
         RiskStatusEnum.ACCEPTED.value,
