@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 from uuid6 import uuid7
 
 
@@ -13,34 +14,15 @@ class Base(DeclarativeBase):
     pass
 
 
-class UserRole(str, enum.Enum):
-    ADMIN = "admin"
-    USER = "user"
+# =============================================================================
+#                              TENANTS TABLE
+# =============================================================================
 
 
 class TenantStatus(str, enum.Enum):
-    provisioning = "provisioning"
-    active = "active"
-    deleting = "deleting"
-
-
-class ReviewStatus(str, enum.Enum):
-    pending = "pending"
-    approved = "approved"
-    rejected = "rejected"
-
-
-class UserStatus(str, enum.Enum):
-    active = "active"
-    suspended = "suspended"
-
-
-class ControlStatus(str, enum.Enum):
-    passing = "Passing"
-    failing = "Failing"
-    stale = "Stale"
-    not_assessed = "Not Assessed"
-    in_remediation = "In Remediation"
+    PROVISIONING = "PROVISIONING"
+    ACTIVE = "ACTIVE"
+    DELETING = "DELETING"
 
 
 class Tenant(Base):
@@ -56,13 +38,16 @@ class Tenant(Base):
         String,
         nullable=False,
     )
-
     status: Mapped[TenantStatus] = mapped_column(
-        SQLEnum(TenantStatus, name="tenant_status_enum"),
+        SQLEnum(
+            TenantStatus,
+            name="tenant_status_enum",
+            values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
+        ),
         nullable=False,
-        default=TenantStatus.provisioning,
+        default=TenantStatus.PROVISIONING,
     )
-
     plan: Mapped[str] = mapped_column(
         String,
         nullable=False,
@@ -79,6 +64,28 @@ class Tenant(Base):
         back_populates="tenant",
         cascade="all, delete-orphan",
     )
+
+
+# =============================================================================
+#                              USERS TABLE
+# =============================================================================
+
+
+class UserRole(str, enum.Enum):
+    TENANT_ADMIN = "TENANT_ADMIN"
+    PLATFORM_OPERATOR = "PLATFORM_OPERATOR"
+    COMPLIANCE_MANAGER = "COMPLIANCE_MANAGER"
+    INTERNAL_AUDITOR = "INTERNAL_AUDITOR"
+    RISK_OWNER = "RISK_OWNER"
+    CISO = "CISO"
+    DPO = "DPO"
+    ENGINEERING_LEAD = "ENGINEERING_LEAD"
+    USER = "USER"
+
+
+class UserStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
 
 
 class User(Base):
@@ -103,17 +110,23 @@ class User(Base):
     )
 
     status: Mapped[UserStatus] = mapped_column(
-        SQLEnum(UserStatus, name="user_status_enum"),
+        SQLEnum(
+            UserStatus,
+            name="user_status_enum",
+            values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
+        ),
         nullable=False,
-        default=UserStatus.active,
+        default=UserStatus.ACTIVE,
     )
 
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(
             UserRole,
-            name="user_role",
-            create_type=False,
+            name="user_role_enum",
             values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
+            create_type=False,
         ),
         nullable=False,
         default=UserRole.USER,
@@ -122,6 +135,12 @@ class User(Base):
     sso_subject: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
+    )
+
+    kc_user_id: Mapped[str] = mapped_column(
+        String,
+        unique=True,
+        nullable=False,
     )
 
     tenant: Mapped["Tenant"] = relationship(
@@ -134,6 +153,11 @@ class User(Base):
         back_populates="owner_user",
         foreign_keys="[Control.owner]",
     )
+
+
+# =============================================================================
+#                            FRAMEWORKS TABLE
+# =============================================================================
 
 
 class Framework(Base):
@@ -157,6 +181,19 @@ class Framework(Base):
         String(255),
         nullable=False,
     )
+
+
+# =============================================================================
+#                             CONTROLS TABLE
+# =============================================================================
+
+
+class ControlStatus(str, enum.Enum):
+    PASSING = "PASSING"
+    FAILING = "FAILING"
+    STALE = "STALE"
+    NOT_ASSESSED = "NOT_ASSESSED"
+    IN_REMEDIATION = "IN_REMEDIATION"
 
 
 class Control(Base):
@@ -196,9 +233,10 @@ class Control(Base):
             ControlStatus,
             name="control_status_enum",
             values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
         ),
         nullable=False,
-        default=ControlStatus.not_assessed,
+        default=ControlStatus.NOT_ASSESSED,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -228,6 +266,11 @@ class Control(Base):
     )
 
 
+# =============================================================================
+#                       EVIDENCE REQUIREMENTS TABLE
+# =============================================================================
+
+
 class EvidenceRequirement(Base):
     """
     Defines the type and refresh cadence of evidence required
@@ -249,6 +292,13 @@ class EvidenceRequirement(Base):
             "controls.control_id",
             ondelete="CASCADE",
         ),
+        nullable=False,
+        index=True,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -280,6 +330,17 @@ class EvidenceRequirement(Base):
         back_populates="requirement",
         cascade="all, delete-orphan",
     )
+
+
+# =============================================================================
+#                              EVIDENCE TABLE
+# =============================================================================
+
+
+class ReviewStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class Evidence(Base):
@@ -377,7 +438,7 @@ class Evidence(Base):
     review_status: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,
-        default=ReviewStatus.pending.value,
+        default=ReviewStatus.PENDING.value,
     )
 
     # Many Evidence → One Control
@@ -390,4 +451,443 @@ class Evidence(Base):
     requirement: Mapped[EvidenceRequirement | None] = relationship(
         "EvidenceRequirement",
         back_populates="evidence_items",
+    )
+
+
+# =============================================================================
+#                               AUDITS TABLE
+# =============================================================================
+
+
+class AuditStatusEnum(str, enum.Enum):
+    PLANNING = "PLANNING"
+    IN_PROGRESS = "IN_PROGRESS"
+    REMEDIATION = "REMEDIATION"
+    CLOSED = "CLOSED"
+
+
+class Audit(Base):
+    __tablename__ = "audits"
+
+    audit_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        nullable=False,
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    framework_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("frameworks.framework_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    period_start: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    period_end: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    status: Mapped[AuditStatusEnum] = mapped_column(
+        SQLEnum(
+            AuditStatusEnum,
+            name="audit_status_enum",
+            values_callable=lambda x: [e.value for e in x],
+            create_type=False,
+        ),
+        nullable=False,
+        default=AuditStatusEnum.PLANNING,
+    )
+    signed_off_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+
+# =============================================================================
+#                         AUDIT SCOPE CONTROLS TABLE
+# =============================================================================
+
+
+class AuditScopeControl(Base):
+    __tablename__ = "audit_scope_controls"
+
+    audit_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audits.audit_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("controls.control_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+
+# =============================================================================
+#                         AUDIT CONTROL REVIEWS TABLE
+# =============================================================================
+
+
+class AuditVerdictEnum(str, enum.Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    EXCEPTION = "EXCEPTION"
+
+
+class AuditControlReview(Base):
+    __tablename__ = "audit_control_reviews"
+
+    audit_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audits.audit_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("controls.control_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    verdict: Mapped[AuditVerdictEnum] = mapped_column(
+        SQLEnum(
+            AuditVerdictEnum,
+            name="audit_verdict_enum",
+            values_callable=lambda x: [e.value for e in x],
+            create_type=False,
+        ),
+        nullable=False,
+    )
+    reviewed_by: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# =============================================================================
+#                             FINDINGS TABLE
+# =============================================================================
+
+
+class FindingStatusEnum(str, enum.Enum):
+    OPEN = "OPEN"
+    IN_REMEDIATION = "IN_REMEDIATION"
+    CLOSED = "CLOSED"
+
+
+class FindingSeverityEnum(str, enum.Enum):
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class Finding(Base):
+    __tablename__ = "findings"
+
+    finding_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        nullable=False,
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    audit_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audits.audit_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("controls.control_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    severity: Mapped[FindingSeverityEnum] = mapped_column(
+        SQLEnum(
+            FindingSeverityEnum,
+            name="finding_severity_enum",
+            values_callable=lambda x: [e.value for e in x],
+            create_type=False,
+        ),
+        nullable=False,
+    )
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    owner: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    due_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[FindingStatusEnum] = mapped_column(
+        SQLEnum(
+            FindingStatusEnum,
+            name="finding_status_enum",
+            values_callable=lambda x: [e.value for e in x],
+            create_type=False,
+        ),
+        nullable=False,
+        default=FindingStatusEnum.OPEN,
+    )
+
+
+# =============================================================================
+#                               RISKS TABLE
+# =============================================================================
+
+
+class RiskStatusEnum(str, enum.Enum):
+    OPEN = "OPEN"
+    TREATING = "TREATING"
+    CLOSED = "CLOSED"
+    ACCEPTED = "ACCEPTED"
+
+
+class RiskTreatmentEnum(str, enum.Enum):
+    AVOID = "AVOID"
+    MITIGATE = "MITIGATE"
+    TRANSFER = "TRANSFER"
+    ACCEPT = "ACCEPT"
+
+
+class Risk(Base):
+    __tablename__ = "risks"
+
+    risk_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        nullable=False,
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    likelihood: Mapped[int] = mapped_column(Integer, nullable=False)
+    impact: Mapped[int] = mapped_column(Integer, nullable=False)
+    inherent_risk_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    residual_risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    treatment: Mapped[RiskTreatmentEnum] = mapped_column(
+        SQLEnum(
+            RiskTreatmentEnum,
+            name="risk_treatment_enum",
+            values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
+            create_type=False,
+        ),
+        nullable=False,
+    )
+    treatment_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_close_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[RiskStatusEnum] = mapped_column(
+        SQLEnum(
+            RiskStatusEnum,
+            name="risk_status_enum",
+            values_callable=lambda x: [e.value for e in x],
+            validate_strings=True,
+            create_type=False,
+        ),
+        nullable=False,
+        default=RiskStatusEnum.OPEN,
+    )
+
+
+# =============================================================================
+#                           RISK CONTROLS TABLE
+# =============================================================================
+
+
+class RiskControl(Base):
+    __tablename__ = "risk_controls"
+
+    risk_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("risks.risk_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("controls.control_id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    )
+    # NEW — same reasoning as the audit bridge tables above.
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+
+# =============================================================================
+#                       CONTROL STATUS HISTORY TABLE
+# =============================================================================
+
+
+class ControlStatusHistory(Base):
+    __tablename__ = "control_status_history"
+
+    history_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        nullable=False,
+    )
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("controls.control_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    old_status: Mapped[str | None] = mapped_column(
+        SQLEnum(
+            "PASSING",
+            "FAILING",
+            "STALE",
+            "NOT_ASSESSED",
+            "IN_REMEDIATION",
+            name="control_status_enum",
+            create_type=False,
+        ),
+        nullable=True,
+    )
+    new_status: Mapped[str] = mapped_column(
+        SQLEnum(
+            "PASSING",
+            "FAILING",
+            "STALE",
+            "NOT_ASSESSED",
+            "IN_REMEDIATION",
+            name="control_status_enum",
+            create_type=False,
+        ),
+        nullable=False,
+    )
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+# =============================================================================
+#                           BREAK GLASS SESSION TABLE
+# =============================================================================
+
+
+class BreakGlassStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+
+
+class BreakGlassSession(Base):
+    __tablename__ = "break_glass_sessions"
+
+    session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid7
+    )
+    target_tenant_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+
+    requested_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    approved_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    revoked_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+
+    ticket_ref: Mapped[str] = mapped_column(String(50), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+
+    status: Mapped[BreakGlassStatus] = mapped_column(
+        SQLEnum(BreakGlassStatus, name="break_glass_status_enum", create_type=False),
+        nullable=False,
+        default=BreakGlassStatus.PENDING,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+# =============================================================================
+#                               AUDIT LOG TABLE
+# =============================================================================
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    log_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid7
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    actor_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    target: Mapped[str] = mapped_column(String, nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)  # <--- Added
+    request_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), default=uuid7, nullable=False
+    )
+    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )

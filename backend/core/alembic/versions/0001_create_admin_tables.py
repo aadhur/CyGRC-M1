@@ -19,23 +19,44 @@ depends_on: str | Sequence[str] | None = None
 
 # Set create_type=False so create_table doesn't re-attempt to CREATE TYPE
 tenant_status_enum = ENUM(
-    "provisioning", "active", "deleting", name="tenant_status_enum", create_type=False
+    "PROVISIONING", "ACTIVE", "DELETING", name="tenant_status_enum", create_type=False
 )
 user_status_enum = ENUM(
-    "active", "suspended", name="user_status_enum", create_type=False
+    "ACTIVE", "SUSPENDED", name="user_status_enum", create_type=False
 )
-user_role_enum = ENUM("admin", "user", name="user_role", create_type=False)
+user_role_enum = ENUM(
+    "TENANT_ADMIN",
+    "COMPLIANCE_MANAGER",
+    "INTERNAL_AUDITOR",
+    "RISK_OWNER",
+    "CISO",
+    "DPO",
+    "ENGINEERING_LEAD",
+    "USER",
+    name="user_role_enum",
+    create_type=False,
+)
 
 
 def upgrade() -> None:
     # 1. Explicitly create the ENUM types in PostgreSQL
-    sa.Enum("provisioning", "active", "deleting", name="tenant_status_enum").create(
+    sa.Enum("PROVISIONING", "ACTIVE", "DELETING", name="tenant_status_enum").create(
         op.get_bind(), checkfirst=True
     )
-    sa.Enum("active", "suspended", name="user_status_enum").create(
+    sa.Enum("ACTIVE", "SUSPENDED", name="user_status_enum").create(
         op.get_bind(), checkfirst=True
     )
-    sa.Enum("admin", "user", name="user_role").create(op.get_bind(), checkfirst=True)
+    sa.Enum(
+        "TENANT_ADMIN",
+        "COMPLIANCE_MANAGER",
+        "INTERNAL_AUDITOR",
+        "RISK_OWNER",
+        "CISO",
+        "DPO",
+        "ENGINEERING_LEAD",
+        "USER",
+        name="user_role_enum",
+    ).create(op.get_bind(), checkfirst=True)
 
     # 2. Create tenants table
     op.create_table(
@@ -43,7 +64,7 @@ def upgrade() -> None:
         sa.Column("tenant_id", UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column(
-            "status", tenant_status_enum, nullable=False, server_default="provisioning"
+            "status", tenant_status_enum, nullable=False, server_default="PROVISIONING"
         ),
         sa.Column("plan", sa.String(length=100), nullable=False),
         sa.Column(
@@ -65,9 +86,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("email", sa.String(length=255), nullable=True),
-        sa.Column("status", user_status_enum, nullable=False, server_default="active"),
-        sa.Column("role", user_role_enum, nullable=False, server_default="user"),
+        sa.Column("status", user_status_enum, nullable=False, server_default="ACTIVE"),
+        sa.Column("role", user_role_enum, nullable=False, server_default="USER"),
         sa.Column("sso_subject", sa.String(length=255), nullable=True),
+        sa.Column("kc_user_id", sa.String(length=255), nullable=False),
     )
 
     # 4. Create foreign key index
@@ -78,6 +100,6 @@ def downgrade() -> None:
     op.drop_index("ix_users_tenant_id", table_name="users")
     op.drop_table("users")
     op.drop_table("tenants")
-    sa.Enum(name="user_role").drop(op.get_bind(), checkfirst=True)
+    sa.Enum(name="user_role_enum").drop(op.get_bind(), checkfirst=True)
     sa.Enum(name="user_status_enum").drop(op.get_bind(), checkfirst=True)
     sa.Enum(name="tenant_status_enum").drop(op.get_bind(), checkfirst=True)
