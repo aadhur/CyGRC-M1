@@ -12,9 +12,9 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas.audits import (
+    AuditControlResponse,
     AuditControlReviewCreate,
     AuditControlReviewResponse,
-    AuditControlResponse,
     AuditResponseSchema,
     AuditSchema,
     AuditSignOffResponse,
@@ -366,7 +366,9 @@ async def export_audit_report_pdf(
     audit_payload = {
         "audit_id": str(audit.audit_id),
         "title": getattr(audit, "title", "Compliance & Controls Assessment"),
-        "framework_name": str(getattr(audit, "framework_id", "Cybersecurity Framework")),
+        "framework_name": str(
+            getattr(audit, "framework_id", "Cybersecurity Framework")
+        ),
         "period_start": str(getattr(audit, "period_start", "N/A")),
         "period_end": str(getattr(audit, "period_end", "N/A")),
         "status": str(audit.status),
