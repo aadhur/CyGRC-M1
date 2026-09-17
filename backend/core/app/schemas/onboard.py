@@ -1,20 +1,13 @@
-from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
-
-
-class UserRole(str, Enum):
-    ADMIN = "admin"
-    USER = "user"
+from pydantic import BaseModel, EmailStr, Field
 
 
 class OnboardRequest(BaseModel):
     name: str
     plan: str
     email: EmailStr
-    password: str
-    role: UserRole = UserRole.USER
+    password: str = Field(min_length=8)
 
 
 class OnboardResponse(BaseModel):
