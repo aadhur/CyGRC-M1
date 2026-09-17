@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.api.deps import get_tenant_and_user, require_scope
@@ -7,10 +8,23 @@ from app.db.models import (
     AuditScopeControl,
     AuditStatusEnum,
     Control,
+    Finding,
 )
 from app.db.session import get_db
-from app.schemas.audits import AuditControlResponse, AuditResponseSchema, AuditSchema
+from app.schemas.audits import (
+    AuditControlReviewCreate,
+    AuditControlReviewResponse,
+    AuditControlResponse,
+    AuditResponseSchema,
+    AuditSchema,
+    AuditSignOffResponse,
+    FindingCreate,
+    FindingResponse,
+    FindingUpdate,
+)
+from app.services.audit_pdf import generate_audit_pdf
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -18,6 +32,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid6 import uuid7
 
 router = APIRouter()
+bearer_scheme = HTTPBearer()
+
+# ==========================================
+# AUDIT CYCLE & SCOPE ENDPOINTS
+# ==========================================
 
 
 @router.post(
@@ -25,7 +44,7 @@ router = APIRouter()
     response_model=AuditResponseSchema,
     status_code=status.HTTP_201_CREATED,
     dependencies=[
-        Depends(HTTPBearer()),
+        Depends(bearer_scheme),
         Depends(require_scope("audits:write")),
     ],
 )
@@ -37,7 +56,6 @@ async def create_audit_cycle(
     tenant_id, _ = tenant_user
 
     try:
-        # 1. Instantiate Audit Cycle (tenant_id is handled by model/RLS default)
         audit = Audit(
             audit_id=uuid7(),
             tenant_id=tenant_id,
@@ -49,7 +67,6 @@ async def create_audit_cycle(
         db.add(audit)
         await db.flush()
 
-        # 2. Populate audit_scope_controls junction table
         if payload.control_ids:
             scope_entries = [
                 AuditScopeControl(
@@ -82,7 +99,7 @@ async def create_audit_cycle(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error while creating audit. Role: {e}",
+            detail=f"Database error while creating audit: {e}",
         ) from e
 
 
@@ -90,7 +107,7 @@ async def create_audit_cycle(
     "/{audit_id}/controls",
     response_model=list[AuditControlResponse],
     dependencies=[
-        Depends(HTTPBearer()),
+        Depends(bearer_scheme),
         Depends(require_scope("audits:read")),
     ],
 )
@@ -117,7 +134,6 @@ async def list_audit_scoped_controls(
         rows = result.all()
 
         if not rows:
-            # Verify if audit cycle exists at all
             audit_exists = await db.execute(
                 select(Audit.audit_id).where(Audit.audit_id == audit_id)
             )
@@ -147,81 +163,79 @@ async def list_audit_scoped_controls(
         ) from e
 
 
-# Note: Adjust these imports based on your exact project structure
-from app.api.dependencies import get_db, get_tenant_and_user
-from app.db import models
-from app.schemas import audits as schemas
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm import Session
-
-router = APIRouter()
-
 # ==========================================
-# ROSHAN's ENDPOINTS (Issue #101)
+# ROSHAN's ENDPOINTS (Issue #101) - ASYNC UNIFIED
 # ==========================================
 
 
-@router.post("/{id}/controls/{control_id}/review", status_code=status.HTTP_200_OK)
-def review_audit_control(
+@router.post(
+    "/{id}/controls/{control_id}/review",
+    response_model=AuditControlReviewResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:write")),
+    ],
+)
+async def review_audit_control(
     id: UUID,
     control_id: UUID,
-    review_in: schemas.ControlReviewCreate,  # <-- Update with Vaibhavi's actual schema name
-    db: Session = Depends(get_db),  # noqa: B008
+    review_in: AuditControlReviewCreate,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
-    """
-    Scope: audits:write
-    Inserts or updates a record in audit_control_reviews.
-    """
-    tenant_id, _ = tenant_user  # Used _ for unused user_id
+    """Scope: audits:write. Inserts or updates a record in audit_control_reviews."""
+    tenant_id, user_id = tenant_user
 
-    # Automatic RLS rule: Do NOT filter by tenant_id
-    existing_review = (
-        db.query(models.AuditControlReview)
-        .filter(
-            models.AuditControlReview.audit_id == id,
-            models.AuditControlReview.control_id == control_id,
-        )
-        .first()
+    stmt = select(AuditControlReview).where(
+        AuditControlReview.audit_id == id,
+        AuditControlReview.control_id == control_id,
     )
+    result = await db.execute(stmt)
+    existing_review = result.scalar_one_or_none()
 
     if existing_review:
-        # Update existing record
         existing_review.verdict = review_in.verdict
         existing_review.notes = review_in.notes
-        db.commit()
-        db.refresh(existing_review)
+        existing_review.reviewed_by = user_id
+        await db.commit()
+        await db.refresh(existing_review)
         return existing_review
     else:
-        # Insert new record (Use tenant_id ONLY for insertion per rules)
-        new_review = models.AuditControlReview(
+        new_review = AuditControlReview(
             tenant_id=tenant_id,
             audit_id=id,
             control_id=control_id,
             verdict=review_in.verdict,
             notes=review_in.notes,
+            reviewed_by=user_id,
         )
         db.add(new_review)
-        db.commit()
-        db.refresh(new_review)
+        await db.commit()
+        await db.refresh(new_review)
         return new_review
 
 
-@router.post("/{id}/findings", status_code=status.HTTP_201_CREATED)
-def create_finding(
+@router.post(
+    "/{id}/findings",
+    response_model=FindingResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:write")),
+    ],
+)
+async def create_finding(
     id: UUID,
-    finding_in: schemas.FindingCreate,  # <-- Update with Vaibhavi's actual schema name
-    db: Session = Depends(get_db),  # noqa: B008
+    finding_in: FindingCreate,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
-    """
-    Scope: audits:write
-    Creates a new finding for an audit.
-    """
-    tenant_id, _ = tenant_user  # Used _ for unused user_id
+    """Scope: audits:write. Creates a new finding for an audit."""
+    tenant_id, _ = tenant_user
 
-    new_finding = models.Finding(
-        tenant_id=tenant_id,  # Insert rule applied
+    new_finding = Finding(
+        tenant_id=tenant_id,
         audit_id=id,
         control_id=finding_in.control_id,
         severity=finding_in.severity,
@@ -231,31 +245,31 @@ def create_finding(
         due_date=finding_in.due_date,
     )
     db.add(new_finding)
-    db.commit()
-    db.refresh(new_finding)
+    await db.commit()
+    await db.refresh(new_finding)
     return new_finding
 
 
-@router.patch("/{id}/findings/{finding_id}", status_code=status.HTTP_200_OK)
-def update_finding_status(
+@router.patch(
+    "/{id}/findings/{finding_id}",
+    response_model=FindingResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:write")),
+    ],
+)
+async def update_finding_status(
     id: UUID,
     finding_id: UUID,
-    finding_update: schemas.FindingUpdate,  # <-- Update with Vaibhavi's actual schema name
-    db: Session = Depends(get_db),  # noqa: B008
+    finding_update: FindingUpdate,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
-    """
-    Scope: audits:write
-    Updates the remediation status of a specific finding.
-    """
-    _, _ = tenant_user  # Both unused, endpoint does not filter by tenant_id
-
-    # Automatic RLS rule: Do NOT filter by tenant_id
-    finding = (
-        db.query(models.Finding)
-        .filter(models.Finding.id == finding_id, models.Finding.audit_id == id)
-        .first()
-    )
+    """Scope: audits:write. Updates the remediation status of a specific finding."""
+    stmt = select(Finding).where(Finding.id == finding_id, Finding.audit_id == id)
+    result = await db.execute(stmt)
+    finding = result.scalar_one_or_none()
 
     if not finding:
         raise HTTPException(
@@ -263,9 +277,130 @@ def update_finding_status(
         )
 
     finding.status = finding_update.status
-    db.commit()
-    db.refresh(finding)
+    await db.commit()
+    await db.refresh(finding)
     return finding
 
 
 # ==========================================
+# VAIBHAVI's ENDPOINTS (Issue #102) - ASYNC UNIFIED
+# ==========================================
+
+
+@router.post(
+    "/{id}/sign-off",
+    response_model=AuditSignOffResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:sign_off")),
+    ],
+)
+async def sign_off_audit(
+    id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
+):
+    """Signs off and closes an audit using auth scope enforcement."""
+    _, user_id = tenant_user
+
+    stmt = select(Audit).where(Audit.audit_id == id)
+    result = await db.execute(stmt)
+    audit = result.scalar_one_or_none()
+
+    if not audit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audit not found",
+        )
+
+    audit.status = AuditStatusEnum.CLOSED
+    audit.signed_off_by = user_id
+    audit.signed_off_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(audit)
+
+    return AuditSignOffResponse(
+        audit_id=audit.audit_id,
+        status="Closed",
+        signed_off_by=audit.signed_off_by,
+        signed_off_at=audit.signed_off_at,
+    )
+
+
+@router.post(
+    "/{id}/export",
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:read")),
+    ],
+)
+async def export_audit_report_pdf(
+    id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
+):
+    """Generates and streams the audit report as an in-memory PDF download."""
+    _, _ = tenant_user
+
+    stmt = select(Audit).where(Audit.audit_id == id)
+    result = await db.execute(stmt)
+    audit = result.scalar_one_or_none()
+
+    if not audit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audit not found",
+        )
+
+    rev_stmt = select(AuditControlReview).where(AuditControlReview.audit_id == id)
+    rev_res = await db.execute(rev_stmt)
+    reviews = rev_res.scalars().all()
+
+    find_stmt = select(Finding).where(Finding.audit_id == id)
+    find_res = await db.execute(find_stmt)
+    findings = find_res.scalars().all()
+
+    audit_payload = {
+        "audit_id": str(audit.audit_id),
+        "title": getattr(audit, "title", "Compliance & Controls Assessment"),
+        "framework_name": str(getattr(audit, "framework_id", "Cybersecurity Framework")),
+        "period_start": str(getattr(audit, "period_start", "N/A")),
+        "period_end": str(getattr(audit, "period_end", "N/A")),
+        "status": str(audit.status),
+        "summary": "This document details the evaluation of scoped security controls.",
+        "controls": [
+            {
+                "code": str(r.control_id),
+                "title": f"Control {r.control_id}",
+                "verdict": r.verdict,
+                "evidence_summary": r.notes or "No notes provided",
+            }
+            for r in reviews
+        ],
+        "findings": [
+            {
+                "severity": f.severity,
+                "description": f.description,
+                "recommendation": f.recommendation,
+                "status": f.status,
+            }
+            for f in findings
+        ],
+        "signed_off_by": str(audit.signed_off_by) if audit.signed_off_by else None,
+        "signed_off_at": audit.signed_off_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+        if audit.signed_off_at
+        else None,
+    }
+
+    pdf_buffer = generate_audit_pdf(audit_payload)
+
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="audit_report_{id}.pdf"'
+        },
+    )
