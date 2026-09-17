@@ -1,19 +1,21 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
+from typing import Any
 from uuid import UUID
-
 from pydantic import BaseModel, ConfigDict
+
+
+class AuditStatusEnum(str, Enum):
+    PLANNING = "planning"
+    IN_PROGRESS = "in_progress"
+    REVIEW = "review"
+    CLOSED = "closed"
 
 
 class ReviewVerdictEnum(str, Enum):
     PASS = "Pass"
     FAIL = "Fail"
     EXCEPTION = "Exception"
-
-
-class AuditControlReviewCreate(BaseModel):
-    verdict: ReviewVerdictEnum
-    notes: str | None = None
 
 
 class FindingSeverityEnum(str, Enum):
@@ -28,6 +30,46 @@ class FindingStatusEnum(str, Enum):
     IN_PROGRESS = "In Progress"
     RESOLVED = "Resolved"
     CLOSED = "Closed"
+
+
+# --- Cycle & Scope Schemas ---
+class AuditSchema(BaseModel):
+    framework_id: UUID
+    period_start: date | datetime
+    period_end: date | datetime
+    control_ids: list[UUID] | None = None
+
+
+class AuditResponseSchema(BaseModel):
+    audit_id: UUID
+    status: AuditStatusEnum | str
+    scoped_control_count: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditControlResponse(BaseModel):
+    control: Any
+    review: Any | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Control Review, Finding & Sign-Off Schemas ---
+class AuditControlReviewCreate(BaseModel):
+    verdict: ReviewVerdictEnum
+    notes: str | None = None
+
+
+class AuditControlReviewResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    audit_id: UUID
+    control_id: UUID
+    verdict: ReviewVerdictEnum
+    notes: str | None = None
+    reviewed_by: UUID | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FindingCreate(BaseModel):
@@ -53,9 +95,8 @@ class FindingResponse(BaseModel):
     owner: UUID
     due_date: datetime
     status: FindingStatusEnum
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime | None = None
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -64,43 +105,4 @@ class AuditSignOffResponse(BaseModel):
     status: str = "Closed"
     signed_off_by: UUID
     signed_off_at: datetime | None = None
-
     model_config = ConfigDict(from_attributes=True)
-
-
-from uuid import UUID
-
-from app.db.models import AuditVerdictEnum
-from app.schemas.controls import ControlResponse
-from pydantic import BaseModel, Field
-
-
-class AuditSchema(BaseModel):
-    framework_id: UUID
-    period_start: datetime
-    period_end: datetime
-    control_ids: list[UUID] = Field(default_factory=list)
-
-
-class AuditSignOffSchema(BaseModel):
-    signed_off_by: UUID | None = None
-
-
-class AuditResponseSchema(BaseModel):
-    audit_id: UUID
-    status: str
-    scoped_control_count: int
-
-
-class AuditControlReviewResponse(BaseModel):
-    verdict: AuditVerdictEnum
-    reviewed_by: UUID
-    reviewed_at: datetime
-    notes: str | None = None
-
-    model_config = {"from_attributes": True}
-
-
-class AuditControlResponse(BaseModel):
-    control: ControlResponse
-    review: AuditControlReviewResponse | None = None
