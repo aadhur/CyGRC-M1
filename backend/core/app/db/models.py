@@ -891,3 +891,124 @@ class AuditLog(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+# =============================================================================
+#                               DPDP BREACH CLOCK TABLE
+# =============================================================================
+
+
+class BreachClockStatus(str, enum.Enum):
+    INACTIVE = "INACTIVE"
+    ACTIVE = "ACTIVE"
+    RESOLVED = "RESOLVED"
+
+
+class DpdpBreachClock(Base):
+    __tablename__ = "dpdp_breach_clock"
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    acknowledged_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    status: Mapped[BreachClockStatus] = mapped_column(
+        SQLEnum(BreachClockStatus, name="breach_clock_status_enum", create_type=False),
+        nullable=False,
+        default=BreachClockStatus.INACTIVE,
+    )
+    notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+# =============================================================================
+#                               AI DRAFT TABLE
+# =============================================================================
+
+
+class AIDraftStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class AIDraft(Base):
+    __tablename__ = "ai_drafts"
+
+    draft_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    control_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("controls.control_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    prompt_hash: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
+
+    output: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    model: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
+
+    review_token: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    status: Mapped[AIDraftStatus] = mapped_column(
+        SQLEnum(
+            AIDraftStatus,
+            name="ai_draft_status_enum",
+            create_type=False,
+        ),
+        nullable=False,
+        default=AIDraftStatus.PENDING,
+    )
+
+    requested_by: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=False,
+    )
+
+    reviewed_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
