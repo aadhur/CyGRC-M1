@@ -1,36 +1,14 @@
 from datetime import date, datetime
-from enum import Enum
-from typing import Any
 from uuid import UUID
 
+from app.db.models import (
+    AuditStatusEnum,
+    AuditVerdictEnum,
+    FindingSeverityEnum,
+    FindingStatusEnum,
+)
+from app.schemas.controls import ControlResponse
 from pydantic import BaseModel, ConfigDict
-
-
-class AuditStatusEnum(str, Enum):
-    PLANNING = "planning"
-    IN_PROGRESS = "in_progress"
-    REVIEW = "review"
-    CLOSED = "closed"
-
-
-class ReviewVerdictEnum(str, Enum):
-    PASS = "Pass"
-    FAIL = "Fail"
-    EXCEPTION = "Exception"
-
-
-class FindingSeverityEnum(str, Enum):
-    LOW = "Low"
-    MEDIUM = "Medium"
-    HIGH = "High"
-    CRITICAL = "Critical"
-
-
-class FindingStatusEnum(str, Enum):
-    OPEN = "Open"
-    IN_PROGRESS = "In Progress"
-    RESOLVED = "Resolved"
-    CLOSED = "Closed"
 
 
 # --- Cycle & Scope Schemas ---
@@ -43,33 +21,31 @@ class AuditSchema(BaseModel):
 
 class AuditResponseSchema(BaseModel):
     audit_id: UUID
-    status: AuditStatusEnum | str
+    status: AuditStatusEnum
     scoped_control_count: int = 0
-    model_config = ConfigDict(from_attributes=True)
-
-
-class AuditControlResponse(BaseModel):
-    control: Any
-    review: Any | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 # --- Control Review, Finding & Sign-Off Schemas ---
 class AuditControlReviewCreate(BaseModel):
-    verdict: ReviewVerdictEnum
+    verdict: AuditVerdictEnum
     notes: str | None = None
 
 
 class AuditControlReviewResponse(BaseModel):
-    id: UUID
     tenant_id: UUID
     audit_id: UUID
     control_id: UUID
-    verdict: ReviewVerdictEnum
+    verdict: AuditVerdictEnum
     notes: str | None = None
     reviewed_by: UUID | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    reviewed_at: datetime | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditControlResponse(BaseModel):
+    control: ControlResponse
+    review: AuditControlReviewResponse | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -87,23 +63,20 @@ class FindingUpdate(BaseModel):
 
 
 class FindingResponse(BaseModel):
-    id: UUID
+    finding_id: UUID
     audit_id: UUID
     control_id: UUID
     severity: FindingSeverityEnum
     description: str
     recommendation: str
     owner: UUID
-    due_date: datetime
+    due_date: datetime | None = None
     status: FindingStatusEnum
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class AuditSignOffResponse(BaseModel):
     audit_id: UUID
-    status: str = "Closed"
+    status: AuditStatusEnum
     signed_off_by: UUID
-    signed_off_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)

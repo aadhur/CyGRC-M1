@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from uuid import UUID
 
 from app.api.deps import get_tenant_and_user, require_scope
@@ -169,7 +168,7 @@ async def list_audit_scoped_controls(
 
 
 @router.post(
-    "/{id}/controls/{control_id}/review",
+    "/{audit_id}/controls/{control_id}/review",
     response_model=AuditControlReviewResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[
@@ -178,7 +177,7 @@ async def list_audit_scoped_controls(
     ],
 )
 async def review_audit_control(
-    id: UUID,
+    audit_id: UUID,
     control_id: UUID,
     review_in: AuditControlReviewCreate,
     db: AsyncSession = Depends(get_db),  # noqa: B008
@@ -188,7 +187,7 @@ async def review_audit_control(
     tenant_id, user_id = tenant_user
 
     stmt = select(AuditControlReview).where(
-        AuditControlReview.audit_id == id,
+        AuditControlReview.audit_id == audit_id,
         AuditControlReview.control_id == control_id,
     )
     result = await db.execute(stmt)
@@ -199,12 +198,11 @@ async def review_audit_control(
         existing_review.notes = review_in.notes
         existing_review.reviewed_by = user_id
         await db.commit()
-        await db.refresh(existing_review)
         return existing_review
     else:
         new_review = AuditControlReview(
             tenant_id=tenant_id,
-            audit_id=id,
+            audit_id=audit_id,
             control_id=control_id,
             verdict=review_in.verdict,
             notes=review_in.notes,
@@ -212,12 +210,11 @@ async def review_audit_control(
         )
         db.add(new_review)
         await db.commit()
-        await db.refresh(new_review)
         return new_review
 
 
 @router.post(
-    "/{id}/findings",
+    "/{audit_id}/findings",
     response_model=FindingResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[
@@ -226,7 +223,7 @@ async def review_audit_control(
     ],
 )
 async def create_finding(
-    id: UUID,
+    audit_id: UUID,
     finding_in: FindingCreate,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
@@ -234,9 +231,32 @@ async def create_finding(
     """Scope: audits:write. Creates a new finding for an audit."""
     tenant_id, _ = tenant_user
 
+    control_stmt = (
+        select(Control.control_id)
+        .join(
+            AuditScopeControl,
+            AuditScopeControl.control_id == Control.control_id,
+        )
+        .where(
+            Control.control_id == finding_in.control_id,
+            AuditScopeControl.audit_id == audit_id,
+            AuditScopeControl.tenant_id == tenant_id,
+        )
+    )
+
+    result = await db.execute(control_stmt)
+    control_id = result.scalar_one_or_none()
+
+    if control_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Control not found or is not part of this audit.",
+        )
+
     new_finding = Finding(
+        finding_id=uuid7(),
         tenant_id=tenant_id,
-        audit_id=id,
+        audit_id=audit_id,
         control_id=finding_in.control_id,
         severity=finding_in.severity,
         description=finding_in.description,
@@ -246,12 +266,11 @@ async def create_finding(
     )
     db.add(new_finding)
     await db.commit()
-    await db.refresh(new_finding)
     return new_finding
 
 
 @router.patch(
-    "/{id}/findings/{finding_id}",
+    "/{audit_id}/findings/{finding_id}",
     response_model=FindingResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[
@@ -260,14 +279,15 @@ async def create_finding(
     ],
 )
 async def update_finding_status(
-    id: UUID,
+    audit_id: UUID,
     finding_id: UUID,
     finding_update: FindingUpdate,
     db: AsyncSession = Depends(get_db),  # noqa: B008
-    tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
     """Scope: audits:write. Updates the remediation status of a specific finding."""
-    stmt = select(Finding).where(Finding.id == finding_id, Finding.audit_id == id)
+    stmt = select(Finding).where(
+        Finding.finding_id == finding_id, Finding.audit_id == audit_id
+    )
     result = await db.execute(stmt)
     finding = result.scalar_one_or_none()
 
@@ -276,9 +296,14 @@ async def update_finding_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found"
         )
 
-    finding.status = finding_update.status
+    if finding_update.status != "CLOSED":
+        finding.status = finding_update.status
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Finding cannot be closed here.",
+        )
     await db.commit()
-    await db.refresh(finding)
     return finding
 
 
@@ -288,23 +313,23 @@ async def update_finding_status(
 
 
 @router.post(
-    "/{id}/sign-off",
+    "/{audit_id}/sign-off",
     response_model=AuditSignOffResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[
         Depends(bearer_scheme),
-        Depends(require_scope("audits:sign_off")),
+        Depends(require_scope("audits:write")),
     ],
 )
 async def sign_off_audit(
-    id: UUID,
+    audit_id: UUID,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
     """Signs off and closes an audit using auth scope enforcement."""
     _, user_id = tenant_user
 
-    stmt = select(Audit).where(Audit.audit_id == id)
+    stmt = select(Audit).where(Audit.audit_id == audit_id)
     result = await db.execute(stmt)
     audit = result.scalar_one_or_none()
 
@@ -314,23 +339,19 @@ async def sign_off_audit(
             detail="Audit not found",
         )
 
-    audit.status = AuditStatusEnum.CLOSED
     audit.signed_off_by = user_id
-    audit.signed_off_at = datetime.now(timezone.utc)
 
     await db.commit()
-    await db.refresh(audit)
 
     return AuditSignOffResponse(
         audit_id=audit.audit_id,
-        status="Closed",
+        status=AuditStatusEnum.CLOSED,
         signed_off_by=audit.signed_off_by,
-        signed_off_at=audit.signed_off_at,
     )
 
 
 @router.post(
-    "/{id}/export",
+    "/{audit_id}/export",
     status_code=status.HTTP_200_OK,
     dependencies=[
         Depends(bearer_scheme),
@@ -338,14 +359,12 @@ async def sign_off_audit(
     ],
 )
 async def export_audit_report_pdf(
-    id: UUID,
+    audit_id: UUID,
     db: AsyncSession = Depends(get_db),  # noqa: B008
-    tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
 ):
     """Generates and streams the audit report as an in-memory PDF download."""
-    _, _ = tenant_user
 
-    stmt = select(Audit).where(Audit.audit_id == id)
+    stmt = select(Audit).where(Audit.audit_id == audit_id)
     result = await db.execute(stmt)
     audit = result.scalar_one_or_none()
 
@@ -355,11 +374,19 @@ async def export_audit_report_pdf(
             detail="Audit not found",
         )
 
-    rev_stmt = select(AuditControlReview).where(AuditControlReview.audit_id == id)
-    rev_res = await db.execute(rev_stmt)
-    reviews = rev_res.scalars().all()
+    rev_stmt = (
+        select(AuditControlReview, Control)
+        .join(
+            Control,
+            Control.control_id == AuditControlReview.control_id,
+        )
+        .where(AuditControlReview.audit_id == audit_id)
+    )
 
-    find_stmt = select(Finding).where(Finding.audit_id == id)
+    rev_res = await db.execute(rev_stmt)
+    review_rows = rev_res.all()
+
+    find_stmt = select(Finding).where(Finding.audit_id == audit_id)
     find_res = await db.execute(find_stmt)
     findings = find_res.scalars().all()
 
@@ -371,30 +398,28 @@ async def export_audit_report_pdf(
         ),
         "period_start": str(getattr(audit, "period_start", "N/A")),
         "period_end": str(getattr(audit, "period_end", "N/A")),
-        "status": str(audit.status),
+        "status": audit.status.value,
         "summary": "This document details the evaluation of scoped security controls.",
         "controls": [
             {
-                "code": str(r.control_id),
-                "title": f"Control {r.control_id}",
-                "verdict": r.verdict,
-                "evidence_summary": r.notes or "No notes provided",
+                "code": control.code,
+                "title": control.title,
+                "description": control.description,
+                "verdict": review.verdict.value,
+                "evidence_summary": review.notes or "No notes provided",
             }
-            for r in reviews
+            for review, control in review_rows
         ],
         "findings": [
             {
                 "severity": f.severity,
                 "description": f.description,
                 "recommendation": f.recommendation,
-                "status": f.status,
+                "status": f.status.value,
             }
             for f in findings
         ],
-        "signed_off_by": str(audit.signed_off_by) if audit.signed_off_by else None,
-        "signed_off_at": audit.signed_off_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-        if audit.signed_off_at
-        else None,
+        "signed_off_by": (str(audit.signed_off_by) if audit.signed_off_by else None),
     }
 
     pdf_buffer = generate_audit_pdf(audit_payload)
@@ -403,6 +428,6 @@ async def export_audit_report_pdf(
         pdf_buffer,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="audit_report_{id}.pdf"'
+            "Content-Disposition": f'attachment; filename="audit_report_{audit_id}.pdf"'
         },
     )

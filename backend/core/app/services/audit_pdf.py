@@ -165,7 +165,7 @@ def generate_audit_pdf(audit_data: dict[str, Any]) -> io.BytesIO:
     passed_controls = sum(
         1
         for c in audit_data.get("controls", [])
-        if str(c.get("verdict", "")).lower() == "pass"
+        if c.get("verdict", "").upper() == "PASS"
     )
 
     summary_metrics = [
