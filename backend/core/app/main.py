@@ -1,3 +1,4 @@
+from app.api.v1.ai import router as ai_router
 from app.api.v1.audit_log import router as log_audit_router
 from app.api.v1.audits import router as audit_router
 from app.api.v1.controls import router as controls_router
@@ -60,6 +61,7 @@ app.include_router(log_audit_router, prefix="/v1/audit-log", tags=["Audit Log"])
 app.include_router(risk_router, prefix="/v1/risks", tags=["Risks"])
 app.include_router(audit_router, prefix="/v1/audits", tags=["Audits"])
 app.include_router(dpdp_router, prefix="/dpdp/breach-clock", tags=["DPDP Breach Clock"])
+app.include_router(ai_router, prefix="/v1/ai", tags=["AI"])
 
 
 @app.get("/healthz", tags=["Health"])

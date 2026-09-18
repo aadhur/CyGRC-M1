@@ -953,11 +953,16 @@ class AIDraft(Base):
         index=True,
     )
 
-    control_id: Mapped[UUID] = mapped_column(
+    control_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("controls.control_id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        nullable=True,
+    )
+
+    risk_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("risks.risk_id", ondelete="CASCADE"),
+        nullable=True,
     )
 
     prompt_hash: Mapped[str] = mapped_column(

@@ -1,4 +1,5 @@
 import contextvars
+import os
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
@@ -10,8 +11,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-DATABASE_URL = (
-    "postgresql+asyncpg://grc_app_test:test_password_123@localhost:5432/grc_platform"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://grc_app_test:test_password_123@localhost:5432/grc_platform",  # fallback for running outside Docker
 )
 
 engine = create_async_engine(

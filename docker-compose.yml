@@ -97,6 +97,7 @@ services:
       - KEYCLOAK_BASE_URL=http://keycloak:8080
       - DATABASE_URL=postgresql+asyncpg://grc_app_test:test_password_123@postgres:5432/grc_platform
       - MINIO_ENDPOINT=http://minio:9000
+      - SLM_ENDPOINT_URL=${SLM_ENDPOINT_URL}
       - MINIO_ACCESS_KEY=minio_local_admin
       - MINIO_SECRET_KEY=minio_local_password_123
       - MINIO_BUCKET=cygrc-evidence

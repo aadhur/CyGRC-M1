@@ -41,7 +41,12 @@ def upgrade() -> None:
         sa.Column(
             "control_id",
             postgresql.UUID(as_uuid=True),
-            nullable=False,
+            nullable=True,
+        ),
+        sa.Column(
+            "risk_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=True,
         ),
         sa.Column(
             "prompt_hash",
@@ -106,6 +111,11 @@ def upgrade() -> None:
             ["controls.control_id"],
             ondelete="CASCADE",
         ),
+        sa.ForeignKeyConstraint(
+            ["risk_id"],
+            ["risks.risk_id"],
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("draft_id"),
         sa.UniqueConstraint("review_token"),
     )
@@ -120,6 +130,11 @@ def upgrade() -> None:
         "ix_ai_drafts_control_id",
         "ai_drafts",
         ["control_id"],
+    )
+    op.create_index(
+        "ix_ai_drafts_risk_id",
+        "ai_drafts",
+        ["risk_id"],
     )
 
     op.create_index(
@@ -153,6 +168,11 @@ def downgrade() -> None:
 
     op.drop_index(
         "ix_ai_drafts_control_id",
+        table_name="ai_drafts",
+    )
+
+    op.drop_index(
+        "ix_ai_drafts_risk_id",
         table_name="ai_drafts",
     )
 
