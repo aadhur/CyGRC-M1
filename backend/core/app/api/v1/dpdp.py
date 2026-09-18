@@ -28,7 +28,7 @@ router = APIRouter()
     "",
     response_model=BreachClockResponse,
     dependencies=[
-        Depends(HTTPBearer),
+        Depends(HTTPBearer()),
         Depends(require_scope("dpdp:read")),
     ],
 )
@@ -40,7 +40,11 @@ async def get_breach_clock(
 
     If no clock exists yet, return the default INACTIVE state.
     """
-    result = await db.execute(select(DpdpBreachClock))
+    result = await db.execute(
+        select(DpdpBreachClock).where(
+            DpdpBreachClock.status == BreachClockStatus.ACTIVE
+        )
+    )
     clock = result.scalar_one_or_none()
 
     if clock is None:
@@ -70,7 +74,7 @@ async def get_breach_clock(
     response_model=BreachClockResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[
-        Depends(HTTPBearer),
+        Depends(HTTPBearer()),
         Depends(require_scope("dpdp:write")),
     ],
 )
@@ -127,7 +131,7 @@ async def start_breach_clock(
     response_model=BreachClockResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[
-        Depends(HTTPBearer),
+        Depends(HTTPBearer()),
         Depends(require_scope("dpdp:write")),
     ],
 )

@@ -4,10 +4,9 @@ Revision ID: 0009
 Revises: <previous_revision>
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 # revision identifiers, used by Alembic.
 revision = "0009"
@@ -77,9 +76,10 @@ def upgrade() -> None:
     )
 
 
-
 def downgrade() -> None:
-    op.execute("DROP POLICY IF EXISTS tenant_isolation_dpdp_breach_clock_policy ON dpdp_breach_clock;")
+    op.execute(
+        "DROP POLICY IF EXISTS tenant_isolation_dpdp_breach_clock_policy ON dpdp_breach_clock;"
+    )
     op.execute("ALTER TABLE dpdp_breach_clock NO FORCE ROW LEVEL SECURITY;")
     op.execute("ALTER TABLE dpdp_breach_clock DISABLE ROW LEVEL SECURITY;")
 
