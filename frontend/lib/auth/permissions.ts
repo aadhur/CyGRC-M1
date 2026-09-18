@@ -50,3 +50,15 @@ export function hasAllScopes(
 ): boolean {
   return requiredScopes.every((scope) => hasScope(userScopes, scope));
 }
+
+export function getRoleLabel(roles: string[]): string {
+  if (roles.length === 0) return "User";
+
+  return roles
+    .map((role) =>
+      role
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase()),
+    )
+    .join(", ");
+}

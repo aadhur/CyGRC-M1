@@ -25,10 +25,12 @@ type AuthUser = {
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   scopes: string[];
   roles: string[];
   tenantId: string | null;
   can: (requiredScopes: Scope[]) => boolean;
+  logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -79,6 +81,10 @@ function decodeAccessToken(): AuthUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const user = useMemo(() => decodeAccessToken(), []);
 
+  const logout = () => {
+  window.location.href = "/api/auth/logout";
+  };
+
   const value = useMemo<AuthContextValue>(() => {
     const scopes = user?.scopes ?? [];
     const roles = user?.roles ?? [];
@@ -86,10 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       user,
       isAuthenticated: Boolean(user),
+      isLoading: false,
       scopes,
       roles,
       tenantId: user?.tenant_id ?? null,
       can: (requiredScopes) => hasAllScopes(scopes, requiredScopes),
+      logout,
     };
   }, [user]);
 

@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LockIcon, BarChart3, Book, Clock, Users, Zap, AlertCircle, Shield, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/auth/context';
+import type { Scope } from "@/lib/auth/permissions";
 import { cn } from '@/lib/utils';
 
 interface SidebarItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  requiredScopes?: string[];
+  requiredScopes?: Scope[];
   locked?: boolean;
   group?: string;
 }

@@ -15,7 +15,7 @@ export default function AppTopBar() {
   if (!user) return null;
 
   const primaryRole = user.roles?.[0] || 'user';
-  const roleLabel = getRoleLabel(primaryRole as any);
+  const roleLabel = getRoleLabel([primaryRole]);
 
   return (
     <header className="fixed top-0 left-64 right-0 h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-40">
