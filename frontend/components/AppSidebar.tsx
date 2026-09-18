@@ -52,7 +52,6 @@ export default function AppSidebar() {
       href: '/audit-log',
       icon: <Clock className="w-5 h-5" />,
       requiredScopes: ['auditlog:read'],
-      locked: true, // Blocked until B4.2
       group: 'compliance',
     },
     {
