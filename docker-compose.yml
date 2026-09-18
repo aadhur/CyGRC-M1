@@ -1,7 +1,5 @@
 # Starts local development backend: PostgreSQL (Database), Valkey (Cache), Keycloak (Auth), and MinIO (File Storage) 
 
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -14,6 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U grc_user -d grc_platform"]
       interval: 5s
@@ -38,7 +37,7 @@ services:
     container_name: cygrc-auth
     environment:
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin_password_123 # Fine for local dev; override in prod env
+      KEYCLOAK_ADMIN_PASSWORD: admin_password_123 
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/grc_platform
       KC_DB_USERNAME: grc_user
@@ -64,6 +63,24 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+  cygrc-storage-setup:
+    image: quay.io/minio/mc:latest
+    container_name: cygrc-storage-setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000
+      minio_local_admin minio_local_password_123;
+      do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      echo 'MinIO is available.';
+      mc mb --ignore-existing local/cygrc-evidence;
+      mc anonymous set download local/cygrc-evidence;
+      echo 'cygrc-evidence bucket is ready.';
+      "
 
 volumes:
   pgdata:

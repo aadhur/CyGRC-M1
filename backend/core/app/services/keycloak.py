@@ -3,39 +3,41 @@ from app.core.config import settings
 from fastapi import HTTPException, status
 
 
+async def _get_admin_token(client: httpx.AsyncClient) -> str:
+    """Helper to authenticate and fetch the Keycloak master admin token."""
+    try:
+        resp = await client.post(
+            f"{settings.KEYCLOAK_BASE_URL}/realms/master/protocol/openid-connect/token",
+            data={
+                "client_id": "admin-cli",
+                "username": settings.KEYCLOAK_ADMIN_USER,
+                "password": settings.KEYCLOAK_ADMIN_PASSWORD,
+                "grant_type": "password",
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["access_token"]
+    except (httpx.HTTPError, KeyError, ValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Keycloak Admin Authentication failed: {e!s}",
+        ) from e
+
+
 async def provision_user_in_keycloak(
-    email: str, password: str, tenant_id: str, role: str = "user"
-) -> str:
+    email: str, password: str, tenant_id: str, role: str = "TENANT_ADMIN"
+) -> tuple[str, str]:
     """
-    Handles all administrative API requests to Keycloak.
-    Creates the user, sets their password permanently, and grabs their token.
+    Creates a user in Keycloak, assigns their role, and returns (access_token, kc_user_id).
     """
     async with httpx.AsyncClient() as client:
-        # Get Master Admin Token
-        try:
-            admin_token_resp = await client.post(
-                f"{settings.KEYCLOAK_BASE_URL}/realms/master/protocol/openid-connect/token",
-                data={
-                    "client_id": "admin-cli",
-                    "username": settings.KEYCLOAK_ADMIN_USER,
-                    "password": settings.KEYCLOAK_ADMIN_PASSWORD,
-                    "grant_type": "password",
-                },
-            )
-            admin_token_resp.raise_for_status()
-            admin_token = admin_token_resp.json()["access_token"]
-        except (httpx.HTTPError, KeyError, ValueError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Keycloak Admin Authentication failed: {e!s}",
-            ) from e
-
-        # Register the user with attributes
+        admin_token = await _get_admin_token(client)
         headers = {
             "Authorization": f"Bearer {admin_token}",
             "Content-Type": "application/json",
         }
 
+        # 1. Register User
         user_payload = {
             "username": email,
             "email": email,
@@ -48,17 +50,19 @@ async def provision_user_in_keycloak(
             ],
         }
 
-        try:
-            create_resp = await client.post(
-                f"{settings.KEYCLOAK_BASE_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users",
-                json=user_payload,
-                headers=headers,
+        create_resp = await client.post(
+            f"{settings.KEYCLOAK_BASE_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users",
+            json=user_payload,
+            headers=headers,
+        )
+
+        if create_resp.status_code == status.HTTP_409_CONFLICT:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This email is already registered in Keycloak.",
             )
-            if create_resp.status_code == 409:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="This email is already registered in Keycloak.",
-                )
+
+        try:
             create_resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             raise HTTPException(
@@ -66,18 +70,13 @@ async def provision_user_in_keycloak(
                 detail=f"Failed to create user inside Keycloak: {e.response.text}",
             ) from e
 
-        # Get newly created Keycloak User ID and Role details
+        # 2. Assign Realm Role
         try:
-            # Get User ID
-            get_user_resp = await client.get(
-                f"{settings.KEYCLOAK_BASE_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users",
-                params={"email": email, "exact": "true"},
-                headers=headers,
-            )
-            get_user_resp.raise_for_status()
-            kc_user_id = get_user_resp.json()[0]["id"]
+            location = create_resp.headers.get("Location")
+            if not location:
+                raise ValueError("Keycloak did not return created user location.")
+            kc_user_id = location.rstrip("/").split("/")[-1]
 
-            # Get Role details for the requested role ('admin' or 'user')
             role_resp = await client.get(
                 f"{settings.KEYCLOAK_BASE_URL}/admin/realms/{settings.KEYCLOAK_REALM}/roles/{role}",
                 headers=headers,
@@ -85,21 +84,19 @@ async def provision_user_in_keycloak(
             role_resp.raise_for_status()
             role_data = role_resp.json()
 
-            # Assign Role to User
-            assign_role_resp = await client.post(
+            assign_resp = await client.post(
                 f"{settings.KEYCLOAK_BASE_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users/{kc_user_id}/role-mappings/realm",
                 json=[{"id": role_data["id"], "name": role_data["name"]}],
                 headers=headers,
             )
-            assign_role_resp.raise_for_status()
-
-        except (httpx.HTTPError, KeyError, IndexError, ValueError) as e:
+            assign_resp.raise_for_status()
+        except (httpx.HTTPError, KeyError, ValueError) as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to map role '{role}' in Keycloak: {e!s}",
             ) from e
 
-        # D. Retrieve User JWT with standard scopes
+        # 3. Retrieve User JWT
         try:
             login_resp = await client.post(
                 f"{settings.KEYCLOAK_BASE_URL}/realms/{settings.KEYCLOAK_REALM}/protocol/openid-connect/token",
@@ -108,13 +105,42 @@ async def provision_user_in_keycloak(
                     "username": email,
                     "password": password,
                     "grant_type": "password",
-                    "scope": "openid auditlog:read controls:read evidence:write",
+                    "scope": "openid",
                 },
             )
             login_resp.raise_for_status()
-            return login_resp.json()["access_token"]
+            access_token = login_resp.json()["access_token"]
+            return access_token, kc_user_id
         except (httpx.HTTPError, KeyError, ValueError) as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to retrieve user JWT token from Keycloak: {e!s}",
+            ) from e
+
+
+async def delete_keycloak_user(kc_user_id: str) -> None:
+    """Deletes a user from Keycloak by their Keycloak User ID."""
+    async with httpx.AsyncClient() as client:
+        admin_token = await _get_admin_token(client)
+        headers = {"Authorization": f"Bearer {admin_token}"}
+
+        try:
+            delete_resp = await client.delete(
+                f"{settings.KEYCLOAK_BASE_URL}/admin/realms/{settings.KEYCLOAK_REALM}/users/{kc_user_id}",
+                headers=headers,
+            )
+
+            if delete_resp.status_code == status.HTTP_404_NOT_FOUND:
+                return  # Idempotent return
+
+            delete_resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to delete user in Keycloak: {e.response.text}",
+            ) from e
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Network error while communicating with Keycloak: {e!s}",
             ) from e
