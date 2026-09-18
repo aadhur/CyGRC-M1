@@ -71,7 +71,7 @@ export function EvidenceSection({ controlId }: { controlId: string }) {
             )}
 
             {isError && (
-                <p className="text-sm text-destructive">Evidence couldn't be loaded. Try refreshing the page.</p>
+                <p className="text-sm text-destructive">Evidence couldn&apos;t be loaded. Try refreshing the page.</p>
             )}
 
             {evidence && evidence.length === 0 && (

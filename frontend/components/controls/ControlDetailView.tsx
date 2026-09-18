@@ -44,7 +44,7 @@ export function ControlDetailView({ controlId }: { controlId: string }) {
     if (isError || !control) {
         return (
             <p className="text-sm text-destructive">
-                This control couldn't be loaded. Try refreshing the page.
+                This control couldn&apos;t be loaded. Try refreshing the page.
             </p>
         );
     }

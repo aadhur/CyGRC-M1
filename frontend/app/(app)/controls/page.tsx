@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import type { ControlStatus } from "@/lib/design/status";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import { apiClient } from "@/lib/api/client";
-import { can } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/context";
 
 interface Control {
@@ -27,7 +27,7 @@ interface Control {
   framework_id: string;
   code: string;
   title: string;
-  status: string;
+  status: ControlStatus;
   owner: string | null;
   notes: string | null;
   created_at: string;
@@ -41,7 +41,7 @@ interface Framework {
 }
 
 export default function ControlsPage() {
-  const { roles } = useAuth();
+  const { scopes } = useAuth();
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [frameworkFilter, setFrameworkFilter] = useState<string>("all");
@@ -50,7 +50,7 @@ export default function ControlsPage() {
     queryKey: ["frameworks"],
     queryFn: () =>
       apiClient<{ frameworks: Framework[] }>("/v1/frameworks"),
-    enabled: can(roles, ["frameworks:read"]),
+    enabled: scopes.includes("frameworks:read"),
   });
 
   const { data: controlsData, isLoading, error } = useQuery({
@@ -62,7 +62,7 @@ export default function ControlsPage() {
           : "";
       return apiClient<Control[]>(`/v1/controls${params}`);
     },
-    enabled: can(roles, ["controls:read"]),
+    enabled: scopes.includes("controls:read"),
   });
 
   const filtered = useMemo(() => {
@@ -75,7 +75,7 @@ export default function ControlsPage() {
     );
   }, [controlsData, search]);
 
-  if (!can(roles, ["controls:read"])) {
+  if (!scopes.includes("controls:read")) {
     return (
       <div className="p-6 text-muted-foreground">
         You do not have permission to view controls.
@@ -98,7 +98,10 @@ export default function ControlsPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        <Select value={frameworkFilter} onValueChange={setFrameworkFilter}>
+        <Select
+        value={frameworkFilter}
+        onValueChange={(value) => setFrameworkFilter(value ?? "all")}
+        >
           <SelectTrigger className="w-48">
             <SelectValue placeholder="All Frameworks" />
           </SelectTrigger>
@@ -142,10 +145,10 @@ export default function ControlsPage() {
                   {control.owner ? (
                     <TooltipProvider>
                       <Tooltip>
-                        <TooltipTrigger asChild>
+                        <TooltipTrigger>
                           <span className="font-mono text-xs truncate max-w-[120px] block">
                             {control.owner}
-                          </span>
+                            </span>
                         </TooltipTrigger>
                         <TooltipContent>{control.owner}</TooltipContent>
                       </Tooltip>

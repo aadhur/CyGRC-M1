@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
-import { can } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/context";
 
 interface Framework {
@@ -13,16 +12,16 @@ interface Framework {
 }
 
 export default function FrameworksPage() {
-  const { roles } = useAuth();
+  const { scopes } = useAuth();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["frameworks"],
     queryFn: () =>
       apiClient<{ frameworks: Framework[] }>("/v1/frameworks"),
-    enabled: can(roles, ["frameworks:read"]),
+    enabled: scopes.includes("frameworks:read"),
   });
 
-  if (!can(roles, ["frameworks:read"])) {
+  if (!scopes.includes("frameworks:read")) {
     return (
       <div className="p-6 text-muted-foreground">
         You do not have permission to view frameworks.
