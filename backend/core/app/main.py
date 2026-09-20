@@ -60,7 +60,9 @@ app.include_router(evidence_router, prefix="/v1/evidence", tags=["Evidence"])
 app.include_router(log_audit_router, prefix="/v1/audit-log", tags=["Audit Log"])
 app.include_router(risk_router, prefix="/v1/risks", tags=["Risks"])
 app.include_router(audit_router, prefix="/v1/audits", tags=["Audits"])
-app.include_router(dpdp_router, prefix="/dpdp/breach-clock", tags=["DPDP Breach Clock"])
+app.include_router(
+    dpdp_router, prefix="/v1/dpdp/breach-clock", tags=["DPDP Breach Clock"]
+)
 app.include_router(ai_router, prefix="/v1/ai", tags=["AI"])
 
 

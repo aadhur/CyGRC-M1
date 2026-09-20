@@ -53,6 +53,9 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         else:
             log_tenant_id = tenant_id
 
+        if not log_tenant_id:
+            return response
+
         # Fix: use regex to strip only version segments (v1, v2, etc.)
         # prevents stripping valid resources like /vendors or /vulnerabilities
         path_parts = [

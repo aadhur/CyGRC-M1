@@ -40,7 +40,7 @@ class DeleteUserResponse(BaseModel):
 
 class UserResponse(BaseModel):
     user_id: UUID
-    email: EmailStr
+    email: EmailStr | None = None
     role: str = Field(..., examples=["USER"])
     status: str
 
