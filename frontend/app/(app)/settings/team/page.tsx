@@ -40,6 +40,7 @@ interface TeamMember {
 interface InvitePayload {
   email: string;
   role: string;
+  password: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -103,6 +104,7 @@ function InviteModal({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("user");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
@@ -115,12 +117,18 @@ function InviteModal({
       return;
     }
 
-    onInvite({ email: trimmed, role });
+    if (password.length < 8) {
+      setError("Temporary password must be at least 8 characters.");
+      return;
+    }
+
+    onInvite({ email: trimmed, role, password });
   }
 
   function handleClose() {
     setEmail("");
     setRole("user");
+    setPassword("");
     setError(null);
     onClose();
   }
@@ -151,7 +159,8 @@ function InviteModal({
               Invite team member
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A temporary password will be communicated outside the application.
+              Set a temporary password and share it with the user outside this
+              application.
             </p>
           </div>
           <button
@@ -209,6 +218,30 @@ function InviteModal({
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             </div>
+          </div>
+
+          {/* Temporary password */}
+          <div>
+            <label
+              htmlFor="invite-password"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Temporary password
+            </label>
+            <input
+              id="invite-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+              autoComplete="new-password"
+              disabled={isSubmitting}
+              className="w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Required by the invite endpoint. Share it with the user through a
+              separate channel; they should change it on first sign-in.
+            </p>
           </div>
 
           {/* Error */}
@@ -609,8 +642,8 @@ export default function TeamPage() {
 
         {/* Informational note about temporary passwords */}
         <p className="text-xs text-muted-foreground">
-          Invited accounts are provisioned with a temporary password that is
-          communicated to the user outside this application.
+          Invited accounts are provisioned with the temporary password entered
+          above, which is communicated to the user outside this application.
         </p>
       </div>
     </>

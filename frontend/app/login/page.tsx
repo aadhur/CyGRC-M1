@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { keycloakConfig } from "@/lib/auth/config";
 
 export default function LoginPage() {
@@ -8,7 +10,11 @@ export default function LoginPage() {
       client_id: keycloakConfig.clientId,
       redirect_uri: keycloakConfig.redirectUri,
       response_type: "code",
-      scope: "openid",
+      // auditlog:read is an *optional* client scope in Keycloak, so it is only
+      // issued when explicitly requested. The remaining scopes (controls:read,
+      // frameworks:read, evidence:write) are default scopes for cygrc-app and
+      // are granted automatically.
+      scope: "openid auditlog:read",
     });
 
     window.location.href = `${keycloakConfig.authUrl}?${params.toString()}`;
@@ -37,6 +43,18 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           You will be redirected to the secure Keycloak login page.
         </p>
+
+        <div className="mt-6 border-t pt-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Don&apos;t have an organisation yet?{" "}
+            <Link
+              href="/onboard"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Set up your workspace
+            </Link>
+          </p>
+        </div>
       </div>
     </main>
   );
