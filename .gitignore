@@ -20,6 +20,3 @@ out/
 
 # Local configuration secrets
 .env
-.env.local
-
-!.env.example
