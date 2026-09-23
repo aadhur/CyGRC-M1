@@ -26,7 +26,7 @@ from sqlalchemy.pool import NullPool
 from uuid6 import uuid7
 
 TEST_DATABASE_URL = (
-    "postgresql+asyncpg://grc_app_test:test_password_123@localhost:5432/grc_platform"
+    "postgresql+asyncpg://grc_app_test:test_password_123@127.0.0.1:5432/grc_platform"
 )
 
 
@@ -196,6 +196,7 @@ async def real_tenants(db_session):
         status=UserStatus.ACTIVE,
     )
     db_session.add(user_a)
+    await db_session.flush()
 
     # Seed Tenant B admin
     await db_session.execute(
