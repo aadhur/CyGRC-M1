@@ -49,7 +49,7 @@ export default function ControlsPage() {
   const { data: frameworksData } = useQuery({
     queryKey: ["frameworks"],
     queryFn: () =>
-      apiClient<{ frameworks: Framework[] }>("/v1/frameworks"),
+      apiClient<Framework[]>("/v1/frameworks"),
     enabled: scopes.includes("frameworks:read"),
   });
 
@@ -107,7 +107,7 @@ export default function ControlsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Frameworks</SelectItem>
-            {frameworksData?.frameworks.map((fw) => (
+            {frameworksData?.map((fw) => (
               <SelectItem key={fw.framework_id} value={fw.framework_id}>
                 {fw.code}
               </SelectItem>

@@ -23,14 +23,6 @@ interface AuditLog {
   created_at: string;
 }
 
-interface ControlsResponse {
-  controls: Control[];
-}
-
-interface FrameworksResponse {
-  frameworks: Framework[];
-}
-
 interface AuditLogResponse {
   audit_logs: AuditLog[];
 }
@@ -44,14 +36,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (can(['controls:read'])) {
-      apiClient<ControlsResponse>('/v1/controls')
-        .then((data) => setControlCount(data.controls?.length ?? 0))
+      apiClient<Control[]>('/v1/controls')
+        .then((data) => setControlCount(Array.isArray(data) ? data.length : 0))
         .catch(() => setControlCount(0));
     }
 
     if (can(['frameworks:read'])) {
-      apiClient<FrameworksResponse>('/v1/frameworks')
-        .then((data) => setFrameworkCount(data.frameworks?.length ?? 0))
+      apiClient<Framework[]>('/v1/frameworks')
+        .then((data) => setFrameworkCount(Array.isArray(data) ? data.length : 0))
         .catch(() => setFrameworkCount(0));
     }
 

@@ -4,13 +4,8 @@ import AppSidebar from '@/components/AppSidebar';
 import AppTopBar from '@/components/AppTopBar';
 import { useAuth } from '@/lib/auth/context';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-/**
- * Authenticated App Layout
- * Wraps all authenticated pages with sidebar and top bar
- * Redirects to login if not authenticated
- */
 export default function AuthLayout({
   children,
 }: {
@@ -18,14 +13,19 @@ export default function AuthLayout({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [mounted, isAuthenticated, isLoading, router]);
 
-  if (isLoading) {
+  if (!mounted || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-950 to-slate-900">
         <div className="text-center">
@@ -37,20 +37,16 @@ export default function AuthLayout({
   }
 
   if (!isAuthenticated) {
-    return null; // Redirect in progress
+    return null;
   }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-slate-950 to-slate-900">
-      {/* Sidebar */}
       <AppSidebar />
 
-      {/* Main content */}
       <div className="ml-64 w-full flex flex-col">
-        {/* Top bar */}
         <AppTopBar />
 
-        {/* Page content */}
         <main className="mt-16 flex-1 overflow-auto p-6">
           {children}
         </main>

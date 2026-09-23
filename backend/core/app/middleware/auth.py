@@ -237,7 +237,27 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                         },
                     )
 
-                tenant_id = uuid.UUID(payload_tenant_id)
+                # Tenants are always created with UUID ids (see onboard.py), and
+                # the tenant_id claim must match one. Report a malformed value
+                # explicitly instead of letting it fall into the generic
+                # ValueError handler below ("Invalid authentication token.").
+                try:
+                    tenant_id = uuid.UUID(str(payload_tenant_id))
+                except ValueError:
+                    logger.warning(
+                        "AUTH REJECTED: 'tenant_id' claim is not a valid UUID "
+                        "(sub=%s, tenant_id=%r). Set the Keycloak user's "
+                        "'tenant_id' attribute to the tenant's UUID.",
+                        payload_kc_user_id,
+                        payload_tenant_id,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={
+                            "detail": "Invalid JWT payload. Attribute 'tenant_id' must be a valid UUID."
+                        },
+                    )
+
                 kc_user_id = payload_kc_user_id
                 roles = payload_roles
                 scopes = [s for r in roles for s in ROLE_SCOPES.get(str(r).upper(), [])]

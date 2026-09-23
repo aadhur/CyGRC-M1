@@ -17,7 +17,7 @@ export default function FrameworksPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["frameworks"],
     queryFn: () =>
-      apiClient<{ frameworks: Framework[] }>("/v1/frameworks"),
+      apiClient<Framework[]>("/v1/frameworks"),
     enabled: scopes.includes("frameworks:read"),
   });
 
@@ -36,7 +36,7 @@ export default function FrameworksPage() {
     <div className="p-6">
       <h1 className="text-2xl font-heading mb-6">Frameworks</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {data?.frameworks.map((fw) => (
+        {data?.map((fw) => (
           <div
             key={fw.framework_id}
             className="rounded-lg border border-border bg-card p-5 space-y-1"

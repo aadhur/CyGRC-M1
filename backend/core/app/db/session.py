@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 DATABASE_URL = (
-    "postgresql+asyncpg://grc_app_test:test_password_123@localhost:5432/grc_platform"
+    "postgresql+asyncpg://grc_user:grc_local_password_123@localhost:5432/grc_platform"
 )
 
 engine = create_async_engine(

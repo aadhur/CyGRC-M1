@@ -30,6 +30,36 @@ export const SCOPES = {
 
 export type Scope = (typeof SCOPES)[keyof typeof SCOPES];
 
+export const ROLE_SCOPES: Record<string, Scope[]> = {
+  TENANT_ADMIN: [
+    "controls:read",
+    "controls:write",
+    "evidence:read",
+    "evidence:write",
+    "evidence:review",
+    "frameworks:read",
+    "auditlog:read",
+    "audits:read",
+    "audits:write",
+    "risks:read",
+    "risks:write",
+    "risks:close",
+    "dpdp:read",
+    "dpdp:write",
+    "users:read",
+    "users:write",
+    "users:delete",
+  ],
+};
+
+export function getScopesForRoles(roles: string[]): Scope[] {
+  return [
+    ...new Set(
+      roles.flatMap((role) => ROLE_SCOPES[role] ?? [])
+    ),
+  ];
+}
+
 export function hasScope(
   userScopes: string[] | undefined,
   requiredScope: Scope,

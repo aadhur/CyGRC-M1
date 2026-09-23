@@ -5,6 +5,13 @@ type RequestOptions = RequestInit & {
   retry?: boolean;
 };
 
+function getAccessToken(): string | null {
+  if (typeof document === "undefined") return null;
+
+  const match = document.cookie.match(/(?:^|;\s*)access_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function refreshAccessToken(): Promise<boolean> {
   try {
     const response = await fetch("/api/auth/refresh", {
@@ -25,12 +32,16 @@ export async function apiFetch<T>(
   const { retry = true, ...fetchOptions } = options;
 
   const isFormData = fetchOptions.body instanceof FormData;
+  const accessToken = getAccessToken();
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...fetchOptions,
     credentials: "include",
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...(accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {}),
       ...fetchOptions.headers,
     },
   });

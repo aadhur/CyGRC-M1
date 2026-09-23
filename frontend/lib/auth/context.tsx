@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import {
+  getScopesForRoles,
   hasAllScopes,
   type Scope,
 } from "./permissions";
@@ -86,8 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<AuthContextValue>(() => {
-    const scopes = user?.scopes ?? [];
     const roles = user?.roles ?? [];
+
+    const tokenScopes = user?.scopes ?? [];
+    const roleScopes = getScopesForRoles(roles);
+
+    const scopes = [...new Set([...tokenScopes, ...roleScopes])];
 
     return {
       user,

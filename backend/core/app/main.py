@@ -23,24 +23,40 @@ app = FastAPI(
 # ------------------------------------------------------------------------------
 # Middlewares
 # ------------------------------------------------------------------------------
+#
+# Starlette's `app.add_middleware()` inserts each new middleware at the FRONT
+# of the internal list, which means the middleware added LAST ends up as the
+# OUTERMOST layer at runtime (i.e. it's the first to see an incoming request,
+# and the last to touch an outgoing response). To get CORS to actually behave
+# as the outermost layer, it must be the LAST call to add_middleware(), not
+# the first. With the previous ordering, KeycloakAuthMiddleware was outermost
+# and CORSMiddleware was innermost, so OPTIONS preflight requests (which carry
+# no Authorization header) hit the auth middleware first, got rejected with a
+# 401 that had no CORS headers attached, and the browser aborted the preflight
+# before the real GET/POST ever reached the backend.
+#
+# Runtime order is therefore, outer -> inner:
+#   CORSMiddleware -> AuditLogMiddleware -> KeycloakAuthMiddleware -> routes
 
-# Layer 1: CORS (Outermost - attaches headers even on errors)
+# Layer 3: Keycloak Auth Middleware (added first -> ends up innermost)
+app.add_middleware(
+    KeycloakAuthMiddleware,
+    keycloak_jwks_url=settings.KEYCLOAK_JWKS_URL,
+    app_env=settings.APP_ENV,
+)
+
+# Layer 2: Audit Logging Middleware
+app.add_middleware(AuditLogMiddleware)
+
+# Layer 1: CORS (added last -> ends up outermost, so it can intercept
+# preflight OPTIONS requests and attach CORS headers to every response,
+# including errors raised by the middlewares/routes it wraps)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,  # e.g. ["http://localhost:3000"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-# Layer 2: Audit Logging Middleware
-app.add_middleware(AuditLogMiddleware)
-
-# Layer 3: Keycloak Auth Middleware (Ensure in-memory JWKS caching is enabled inside)
-app.add_middleware(
-    KeycloakAuthMiddleware,
-    keycloak_jwks_url=settings.KEYCLOAK_JWKS_URL,
-    app_env=settings.APP_ENV,
 )
 
 # ------------------------------------------------------------------------------
