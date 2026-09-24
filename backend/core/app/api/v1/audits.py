@@ -14,6 +14,7 @@ from app.schemas.audits import (
     AuditControlResponse,
     AuditControlReviewCreate,
     AuditControlReviewResponse,
+    AuditDetailResponse,
     AuditResponseSchema,
     AuditSchema,
     AuditSignOffResponse,
@@ -25,7 +26,7 @@ from app.services.audit_pdf import generate_audit_pdf
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid6 import uuid7
@@ -39,6 +40,7 @@ bearer_scheme = HTTPBearer()
 # ==========================================
 @router.get(
     "",
+    response_model=list[AuditDetailResponse],
     dependencies=[
         Depends(bearer_scheme),
         Depends(require_scope("audits:read")),
@@ -47,14 +49,38 @@ bearer_scheme = HTTPBearer()
 async def list_audits(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    stmt = select(Audit).order_by(Audit.period_start.desc())
+    stmt = (
+        select(
+            Audit,
+            func.count(AuditScopeControl.control_id).label("scoped_control_count"),
+        )
+        .outerjoin(
+            AuditScopeControl,
+            AuditScopeControl.audit_id == Audit.audit_id,
+        )
+        .group_by(Audit.audit_id)
+        .order_by(Audit.period_start.desc())
+    )
     result = await db.execute(stmt)
-    audits = result.scalars().all()
-    return audits
+    rows = result.all()
+
+    return [
+        AuditDetailResponse(
+            audit_id=audit.audit_id,
+            framework_id=audit.framework_id,
+            period_start=audit.period_start,
+            period_end=audit.period_end,
+            status=audit.status,
+            signed_off_by=audit.signed_off_by,
+            scoped_control_count=count,
+        )
+        for audit, count in rows
+    ]
 
 
 @router.get(
     "/{audit_id}",
+    response_model=AuditDetailResponse,
     dependencies=[
         Depends(bearer_scheme),
         Depends(require_scope("audits:read")),
@@ -64,12 +90,34 @@ async def get_single_audit(
     audit_id: UUID,
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
+    # 1. Fetch the audit
     stmt = select(Audit).where(Audit.audit_id == audit_id)
     result = await db.execute(stmt)
     audit = result.scalar_one_or_none()
+
     if not audit:
-        raise HTTPException(status_code=404, detail="Audit not found.")
-    return audit
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audit not found.",
+        )
+
+    # 2. Fetch all control UUIDs scoped to this audit
+    scope_stmt = select(AuditScopeControl.control_id).where(
+        AuditScopeControl.audit_id == audit_id
+    )
+    scope_res = await db.execute(scope_stmt)
+    scoped_control_ids = scope_res.scalars().all()
+
+    return AuditDetailResponse(
+        audit_id=audit.audit_id,
+        framework_id=audit.framework_id,
+        period_start=audit.period_start,
+        period_end=audit.period_end,
+        status=audit.status,
+        signed_off_by=audit.signed_off_by,
+        scoped_control_count=len(scoped_control_ids),
+        control_ids=list(scoped_control_ids),
+    )
 
 
 @router.post(
