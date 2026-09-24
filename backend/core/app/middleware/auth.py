@@ -159,6 +159,9 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         return count <= RATE_LIMIT_MAX_REQUESTS
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "unknown"
         if not await self.check_rate_limit(client_ip):
             return JSONResponse(
