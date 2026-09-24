@@ -33,9 +33,43 @@ from uuid6 import uuid7
 router = APIRouter()
 bearer_scheme = HTTPBearer()
 
+
 # ==========================================
 # AUDIT CYCLE & SCOPE ENDPOINTS
 # ==========================================
+@router.get(
+    "",
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:read")),
+    ],
+)
+async def list_audits(
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    stmt = select(Audit).order_by(Audit.period_start.desc())
+    result = await db.execute(stmt)
+    audits = result.scalars().all()
+    return audits
+
+
+@router.get(
+    "/{audit_id}",
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:read")),
+    ],
+)
+async def get_single_audit(
+    audit_id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    stmt = select(Audit).where(Audit.audit_id == audit_id)
+    result = await db.execute(stmt)
+    audit = result.scalar_one_or_none()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Audit not found.")
+    return audit
 
 
 @router.post(
@@ -160,6 +194,23 @@ async def list_audit_scoped_controls(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while retrieving audit controls.",
         ) from e
+
+
+@router.get(
+    "/{audit_id}/findings",
+    response_model=list[FindingResponse],
+    dependencies=[
+        Depends(bearer_scheme),
+        Depends(require_scope("audits:read")),
+    ],
+)
+async def list_audit_findings(
+    audit_id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    stmt = select(Finding).where(Finding.audit_id == audit_id)
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
 # ==========================================
