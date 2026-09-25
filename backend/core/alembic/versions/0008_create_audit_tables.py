@@ -67,12 +67,12 @@ def upgrade() -> None:
     )
 
     # 4. Enforce constraint strictly per spec
-    op.execute("REVOKE UPDATE, DELETE ON TABLE audit_log FROM grc_user;")
+    op.execute("REVOKE UPDATE, DELETE ON TABLE audit_log FROM grc_app_test;")
 
 
 def downgrade() -> None:
     # 1. Re-grant permissions
-    op.execute("GRANT UPDATE, DELETE ON TABLE audit_log TO grc_user;")
+    op.execute("GRANT UPDATE, DELETE ON TABLE audit_log TO grc_app_test;")
 
     # 2. Drop policy
     op.execute("DROP POLICY IF EXISTS tenant_isolation_audit_log_policy ON audit_log;")
