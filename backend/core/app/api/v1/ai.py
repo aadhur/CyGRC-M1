@@ -188,7 +188,7 @@ async def approve_draft(
     if draft.status != "PENDING":
         raise HTTPException(
             status_code=409,
-            detail=f"Draft is already {draft.status}, cannot approve.",
+            detail=f"Draft is already {draft.status.value}, cannot approve.",
         )
 
     if draft.control_id is not None and draft.risk_id is None:
