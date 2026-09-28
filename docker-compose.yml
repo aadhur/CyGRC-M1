@@ -52,7 +52,7 @@ services:
         condition: service_healthy
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: cygrc-storage
     ports:
       - "9000:9000" #S3 API port
@@ -63,8 +63,9 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+
   cygrc-storage-setup:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest-dev
     container_name: cygrc-storage-setup
     depends_on:
       - minio
@@ -81,6 +82,54 @@ services:
       mc anonymous set download local/cygrc-evidence;
       echo 'cygrc-evidence bucket is ready.';
       "
+  backend:
+    build: ./backend/core  
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "DATABASE_URL=postgresql+asyncpg://grc_user:grc_local_password_123@postgres:5432/grc_platform alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend/core/app:/app/app
+    environment:
+    
+      - VALKEY_URL=redis://valkey:6379/0
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - DATABASE_URL=postgresql+asyncpg://grc_app_test:test_password_123@postgres:5432/grc_platform
+      - MINIO_ENDPOINT=http://minio:9000
+      - SLM_ENDPOINT_URL=${SLM_ENDPOINT_URL}
+      - MINIO_ACCESS_KEY=minio_local_admin
+      - MINIO_SECRET_KEY=minio_local_password_123
+      - MINIO_BUCKET=cygrc-evidence
+      - KEYCLOAK_ADMIN_USER=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin_password_123
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  frontend:
+      build: ./frontend
+      container_name: cygrc-frontend
+      ports:
+        - "3000:3000"
+      volumes:
+        - ./frontend:/app
+        - /app/node_modules
+        - /app/.next
+      environment:
+        - KEYCLOAK_INTERNAL_URL=http://keycloak:8080
+        - NEXT_PUBLIC_KEYCLOAK_BASE_URL=http://localhost:8080
+        - NEXT_PUBLIC_KEYCLOAK_REALM=cyart-platform
+        - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=cygrc-app
+        - NEXT_PUBLIC_APP_URL=http://localhost:3000
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      depends_on:
+        - backend
+
 
 volumes:
   pgdata:
