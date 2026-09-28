@@ -175,53 +175,6 @@ async def get_risk(
         )
 
 
-@router.get(
-    "/{risk_id}",
-    response_model=GetRiskResponse,
-    dependencies=[
-        Depends(http_bearer),
-        Depends(require_scope("risks:read")),
-    ],
-)
-async def get_single_risk(
-    risk_id: UUID,
-    db: AsyncSession = Depends(get_db),  # noqa: B008
-):
-    """
-    Fetch a single risk by UUID with its associated control IDs.
-    PostgreSQL Row-Level Security automatically isolates cross-tenant access.
-    """
-    stmt = select(Risk).where(Risk.risk_id == risk_id)
-    result = await db.execute(stmt)
-    risk = result.scalar_one_or_none()
-
-    if risk is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Risk '{risk_id}' not found.",
-        )
-
-    # Fetch linked control IDs
-    ctrl_stmt = select(RiskControl.control_id).where(RiskControl.risk_id == risk_id)
-    ctrl_res = await db.execute(ctrl_stmt)
-    linked_control_ids = ctrl_res.scalars().all()
-
-    return GetRiskResponse(
-        risk_id=risk.risk_id,
-        title=risk.title,
-        description=risk.description,
-        likelihood=risk.likelihood,
-        impact=risk.impact,
-        inherent_score=risk.inherent_risk_score,
-        residual_score=risk.residual_risk_score,
-        treatment=risk.treatment,
-        treatment_plan=risk.treatment_plan,
-        target_close_date=risk.target_close_date,
-        status=risk.status,
-        control_ids=list(linked_control_ids),
-    )
-
-
 @router.patch(
     "/{risk_id}",
     response_model=RiskPatchResponse,

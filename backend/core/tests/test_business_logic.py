@@ -8,7 +8,6 @@ from app.db.models import (
     Audit,
     AuditStatusEnum,
     BreakGlassStatus,
-    BreakGlassSession,
     Control,
     ControlStatus,
     Finding,
@@ -497,17 +496,11 @@ async def test_ai_draft_approval_is_single_use(
     )
 
     control_result = await db_session.execute(
-        text(
-            "SELECT description FROM controls "
-            "WHERE control_id = :control_id"
-        ),
+        text("SELECT description FROM controls WHERE control_id = :control_id"),
         {"control_id": str(control.control_id)},
     )
     draft_result = await db_session.execute(
-        text(
-            "SELECT status FROM ai_drafts "
-            "WHERE draft_id = :draft_id"
-        ),
+        text("SELECT status FROM ai_drafts WHERE draft_id = :draft_id"),
         {"draft_id": str(draft.draft_id)},
     )
 
