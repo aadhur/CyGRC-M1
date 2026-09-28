@@ -52,7 +52,7 @@ services:
         condition: service_healthy
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: cygrc-storage
     ports:
       - "9000:9000" #S3 API port
@@ -63,14 +63,9 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   cygrc-storage-setup:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest-dev
     container_name: cygrc-storage-setup
     depends_on:
       - minio
@@ -91,6 +86,10 @@ services:
     build: ./backend/core  
     ports:
       - "8000:8000"
+    command: >
+      sh -c "DATABASE_URL=postgresql+asyncpg://grc_user:grc_local_password_123@postgres:5432/grc_platform alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend/core/app:/app/app
     environment:
     
       - VALKEY_URL=redis://valkey:6379/0
@@ -110,7 +109,25 @@ services:
       valkey:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
+
+  frontend:
+      build: ./frontend
+      container_name: cygrc-frontend
+      ports:
+        - "3000:3000"
+      volumes:
+        - ./frontend:/app
+        - /app/node_modules
+        - /app/.next
+      environment:
+        - NEXT_PUBLIC_KEYCLOAK_BASE_URL=http://localhost:8080
+        - NEXT_PUBLIC_KEYCLOAK_REALM=cyart-platform
+        - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=cygrc-app
+        - NEXT_PUBLIC_APP_URL=http://localhost:3000
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      depends_on:
+        - backend
 
 
 volumes:

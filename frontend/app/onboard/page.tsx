@@ -15,7 +15,7 @@ export default function OnboardPage() {
     name: "",
     email: "",
     password: "",
-    plan: "Growth",
+    plan: "Standard",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

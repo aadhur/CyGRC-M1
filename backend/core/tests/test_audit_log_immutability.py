@@ -18,11 +18,11 @@ async def get_or_create_tenant(db_session):
             text(
                 """
                 INSERT INTO tenants (tenant_id, name, plan) 
-                VALUES (:tid, 'test-tenant', 'enterprise') 
+                VALUES (:tid, :name, 'ENTERPRISE')
                 ON CONFLICT (tenant_id) DO NOTHING
                 """
             ),
-            {"tid": tenant_id},
+            {"tid": tenant_id, "name": f"Tenant-{tenant_id}"},
         )
         await db_session.commit()
 

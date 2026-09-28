@@ -219,3 +219,36 @@ async def real_tenants(db_session):
         "tenant_b": tenant_b_id,
         "user_b": user_b_id,
     }
+
+
+ADMIN_DATABASE_URL = (
+    "postgresql+asyncpg://grc_user:grc_local_password_123@127.0.0.1:5432/grc_platform"
+)
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def cleanup_test_database():
+    yield
+    # Runs after all tests finish as ADMIN (grc_user)
+    admin_engine = create_async_engine(
+        ADMIN_DATABASE_URL, echo=False, poolclass=NullPool
+    )
+    async with admin_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM audit_log WHERE user_agent = 'pytest';"))
+
+        await conn.execute(
+            text(
+                "DELETE FROM tenants "
+                "WHERE name LIKE 'Tenant-%' "
+                "   OR name IN ('Tenant Alpha', 'Tenant Beta');"
+            )
+        )
+
+        await conn.execute(
+            text(
+                "DELETE FROM frameworks "
+                "WHERE code LIKE 'TEST-FW-%' "
+                "   OR code LIKE 'B10-%';"
+            )
+        )
+    await admin_engine.dispose()

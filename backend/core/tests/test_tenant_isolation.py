@@ -5,6 +5,7 @@ import pytest
 import pytest_asyncio
 from app.db.models import (
     Audit,
+    AuditStatusEnum,
     Control,
     ControlStatus,
     Evidence,
@@ -126,7 +127,7 @@ async def seed_audit(
         framework_id=framework_id,
         period_start=datetime.fromisoformat("2026-01-01T00:00:00+00:00"),
         period_end=datetime.fromisoformat("2026-12-31T00:00:00+00:00"),
-        status="IN_PROGRESS",
+        status=AuditStatusEnum.IN_PROGRESS,
     )
     db.add(audit)
     await db.flush()

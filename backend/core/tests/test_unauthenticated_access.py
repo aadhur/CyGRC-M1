@@ -7,7 +7,7 @@ PROTECTED_ENDPOINTS = [
     "/v1/risks",
     "/v1/audits",
     "/v1/users",
-    "/v1/dpdp",
+    "/v1/dpdp/breach-clock",
 ]
 
 

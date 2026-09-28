@@ -13,6 +13,7 @@ PROTECTED_ENDPOINTS = [
     ("GET", "/v1/controls/{control_id}", "controls:read"),
     ("PATCH", "/v1/controls/{control_id}", "controls:write"),
     ("GET", "/v1/controls/{control_id}/evidence", "evidence:read"),
+    ("GET", "/v1/controls/assignees", "controls:write"),
     # Frameworks
     ("GET", "/v1/frameworks", "frameworks:read"),
     ("POST", "/v1/frameworks", "frameworks:write"),
