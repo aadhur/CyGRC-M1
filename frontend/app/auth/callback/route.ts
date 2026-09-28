@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
 
   if (error || !code) {
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(error || "authorization_code_missing")}`, request.url)
+      new URL(
+        `/login?error=${encodeURIComponent(error || "authorization_code_missing")}`,
+        request.url
+      )
     );
   }
 
@@ -20,6 +23,7 @@ export async function GET(request: NextRequest) {
       redirect_uri: AUTH_CONFIG.callbackUrl,
     });
 
+    // Uses http://keycloak:8080 inside Docker container
     const tokenRes = await fetch(AUTH_CONFIG.tokenEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -32,27 +36,33 @@ export async function GET(request: NextRequest) {
         new URL(`/login?error=${encodeURIComponent(errText)}`, request.url)
       );
     }
+
     const data = await tokenRes.json();
     const { access_token, refresh_token, id_token, expires_in } = data;
 
     const response = NextResponse.redirect(new URL("/dashboard", request.url));
 
-    response.cookies.set("cygrc_refresh_token", refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 30 * 24 * 60 * 60,
-    });
+    // 1. Long-lived refresh token
+    if (refresh_token) {
+      response.cookies.set("cygrc_refresh_token", refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      });
+    }
 
+    // 2. Readable access token for client-side scope checks
     response.cookies.set("cygrc_access_token", access_token, {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: expires_in || 900,
+      maxAge: expires_in || 900, // 15 mins
     });
 
+    // 3. ID token for clean Keycloak logout
     if (id_token) {
       response.cookies.set("cygrc_id_token", id_token, {
         httpOnly: false,
@@ -70,4 +80,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

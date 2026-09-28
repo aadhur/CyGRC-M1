@@ -121,6 +121,7 @@ services:
         - /app/node_modules
         - /app/.next
       environment:
+        - KEYCLOAK_INTERNAL_URL=http://keycloak:8080
         - NEXT_PUBLIC_KEYCLOAK_BASE_URL=http://localhost:8080
         - NEXT_PUBLIC_KEYCLOAK_REALM=cyart-platform
         - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=cygrc-app
