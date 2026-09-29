@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // 2. Clear browser Keycloak cookie using id_token_hint
+  // 2. Clear browser Keycloak session using id_token_hint
   let redirectTarget = `${AUTH_CONFIG.keycloakBaseUrl}/realms/${AUTH_CONFIG.realm}/protocol/openid-connect/logout?client_id=${AUTH_CONFIG.clientId}&post_logout_redirect_uri=${encodeURIComponent(
     `${AUTH_CONFIG.appUrl}/login`
   )}`;
@@ -34,11 +34,23 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(redirectTarget);
 
-  // 3. Delete all cookies on localhost:3000
-  response.cookies.delete("cygrc_access_token");
-  response.cookies.delete("cygrc_refresh_token");
-  response.cookies.delete("cygrc_id_token");
-  response.cookies.delete("access_token");
+  // 3. Purge BOTH prefixed and legacy duplicate cookies
+  const cookiesToPurge = [
+    "cygrc_access_token",
+    "cygrc_refresh_token",
+    "cygrc_id_token",
+    "access_token",
+    "refresh_token",
+    "id_token",
+  ];
+
+  for (const name of cookiesToPurge) {
+    response.cookies.set(name, "", {
+      path: "/",
+      expires: new Date(0),
+      maxAge: 0,
+    });
+  }
 
   return response;
 }

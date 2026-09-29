@@ -16,15 +16,25 @@ function notifyRefreshed(token: string | null) {
 
 async function refreshAccessToken(): Promise<string | null> {
   try {
-    const res = await fetch("/api/auth/refresh", { credentials: "include" });
+    const res = await fetch("/api/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+    });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.access_token || null;
+    const newToken = data.access_token || null;
+
+    if (newToken && typeof document !== "undefined") {
+      document.cookie = `cygrc_access_token=${encodeURIComponent(
+        newToken
+      )}; Path=/; Max-Age=900; SameSite=Lax`;
+    }
+
+    return newToken;
   } catch {
     return null;
   }
 }
-
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}

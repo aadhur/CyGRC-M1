@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth/context";
 import { apiFetch } from "@/lib/api/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EvidenceUploadModal } from "@/components/EvidenceUploadModal";
+import { AIDraftPanel } from "@/components/AIDraftPanel";
 import {
   UploadCloud,
   Check,
@@ -14,6 +15,7 @@ import {
   Loader2,
   User as UserIcon,
   FileCheck2,
+  RefreshCw,
 } from "lucide-react";
 
 interface ControlDetail {
@@ -61,16 +63,20 @@ export default function ControlDetailPage({
   const [ownerInput, setOwnerInput] = useState("");
   const [notesInput, setNotesInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Destructive reject confirmation state
+  const [rejectEvidenceId, setRejectEvidenceId] = useState<string | null>(null);
 
   const fetchControlData = async () => {
     try {
       const [ctrl, evRes, assigneeList] = await Promise.all([
         apiFetch<ControlDetail>(`/v1/controls/${controlId}`),
         apiFetch<{ evidence: EvidenceItem[] }>(`/v1/controls/${controlId}/evidence`),
-        apiFetch<Assignee[]>("/v1/controls/assignees"),
+        apiFetch<Assignee[]>("/v1/controls/assignees").catch(() => []),
       ]);
       setControl(ctrl);
       setOwnerInput(ctrl.owner || "");
@@ -87,6 +93,24 @@ export default function ControlDetailPage({
   useEffect(() => {
     fetchControlData();
   }, [controlId]);
+
+  const handleRecalculate = async () => {
+    setEvaluating(true);
+    try {
+      await apiFetch("/v1/controls/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ control_id: controlId }),
+      });
+      await fetchControlData();
+      setToast("Compliance status recalculated.");
+      setTimeout(() => setToast(null), 3000);
+    } catch (err: any) {
+      setToast(err.message || "Failed to recalculate status.");
+    } finally {
+      setEvaluating(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +164,7 @@ export default function ControlDetailPage({
     evidenceList.find((e) => e.requirement_id)?.requirement_id ||
     "";
 
+
   if (loading) {
     return (
       <div className="p-16 flex items-center justify-center text-slate-400 gap-2">
@@ -183,15 +208,28 @@ export default function ControlDetailPage({
           </h1>
         </div>
 
-        {can(["evidence:write"]) && (
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-orange hover:bg-brand-orange-hover text-white font-semibold text-xs rounded-xl shadow transition-colors"
-          >
-            <UploadCloud size={16} />
-            <span>Upload Evidence</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {can(["controls:write"]) && (
+            <button
+              onClick={handleRecalculate}
+              disabled={evaluating}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-surface border border-border hover:border-brand-orange text-xs text-slate-200 font-semibold rounded-xl disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw size={13} className={evaluating ? "animate-spin text-brand-orange" : ""} />
+              <span>{evaluating ? "Evaluating..." : "Recalculate"}</span>
+            </button>
+          )}
+
+          {can(["evidence:write"]) && (
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-orange hover:bg-brand-orange-hover text-white font-semibold text-xs rounded-xl shadow transition-colors"
+            >
+              <UploadCloud size={16} />
+              <span>Upload Evidence</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -204,6 +242,13 @@ export default function ControlDetailPage({
             <p className="text-sm text-slate-200 leading-relaxed bg-surface-raised/50 p-4 rounded-xl border border-border">
               {control.description}
             </p>
+
+            {/* AI Drafting Panel */}
+            <AIDraftPanel
+              type="control"
+              resourceId={control.control_id}
+              onApplied={(newDesc) => setControl({ ...control, description: newDesc })}
+            />
           </section>
 
           <section className="p-6 bg-surface border border-border rounded-2xl">
@@ -319,7 +364,7 @@ export default function ControlDetailPage({
                         <Check size={12} /> Approve
                       </button>
                       <button
-                        onClick={() => handleReview(ev.evidence_id, "REJECTED")}
+                        onClick={() => setRejectEvidenceId(ev.evidence_id)}
                         className="flex-1 py-1 rounded bg-rose-950/60 border border-rose-700/60 text-rose-400 text-xs font-medium hover:bg-rose-900/80 flex items-center justify-center gap-1"
                       >
                         <X size={12} /> Reject
@@ -351,6 +396,7 @@ export default function ControlDetailPage({
           }}
         />
       )}
+
     </div>
   );
 }

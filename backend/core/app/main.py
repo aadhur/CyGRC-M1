@@ -26,23 +26,23 @@ app = FastAPI(
 # Middlewares
 # ------------------------------------------------------------------------------
 
-# Layer 1: CORS (Outermost - attaches headers even on errors)
+# Layer 1: Keycloak Auth Middleware
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,  # e.g. ["http://localhost:3000"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    KeycloakAuthMiddleware,
+    keycloak_jwks_url=settings.KEYCLOAK_JWKS_URL,
+    app_env=settings.APP_ENV,
 )
 
 # Layer 2: Audit Logging Middleware
 app.add_middleware(AuditLogMiddleware)
 
-# Layer 3: Keycloak Auth Middleware (Ensure in-memory JWKS caching is enabled inside)
+# Layer 3: CORS (OUTERMOST)
 app.add_middleware(
-    KeycloakAuthMiddleware,
-    keycloak_jwks_url=settings.KEYCLOAK_JWKS_URL,
-    app_env=settings.APP_ENV,
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ------------------------------------------------------------------------------

@@ -82,7 +82,7 @@ async def invite_user(
     tenant_id = str(request.state.tenant_id)
 
     # 2. Provision identity in Keycloak bound to admin's tenant_id
-    _, kc_user_id = await provision_user_in_keycloak(
+    _, _, kc_user_id = await provision_user_in_keycloak(
         email=payload.email,
         password=payload.password,
         tenant_id=str(tenant_id),

@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api/client";
+import { useAuth } from "@/lib/auth/context";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Search, ArrowRight, Loader2 } from "lucide-react";
+import { Search, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 
 interface ControlItem {
   control_id: string;
@@ -29,6 +30,7 @@ interface AssigneeItem {
 }
 
 export default function ControlsPage() {
+  const { can } = useAuth();
   const [controls, setControls] = useState<ControlItem[]>([]);
   const [frameworks, setFrameworks] = useState<FrameworkItem[]>([]);
   const [assigneeMap, setAssigneeMap] = useState<Record<string, string>>({});
@@ -36,32 +38,49 @@ export default function ControlsPage() {
   const [selectedFramework, setSelectedFramework] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [loading, setLoading] = useState(true);
+  const [calculating, setCalculating] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const [ctrls, fws, assignees] = await Promise.all([
+        apiFetch<ControlItem[]>("/v1/controls"),
+        apiFetch<FrameworkItem[]>("/v1/frameworks"),
+        apiFetch<AssigneeItem[]>("/v1/controls/assignees").catch(() => []),
+      ]);
+      setControls(ctrls || []);
+      setFrameworks(fws || []);
+
+      const map: Record<string, string> = {};
+      (assignees || []).forEach((a) => {
+        map[a.user_id] = a.email;
+      });
+      setAssigneeMap(map);
+    } catch (err) {
+      console.error("Failed to load controls:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [ctrls, fws, assignees] = await Promise.all([
-          apiFetch<ControlItem[]>("/v1/controls"),
-          apiFetch<FrameworkItem[]>("/v1/frameworks"),
-          apiFetch<AssigneeItem[]>("/v1/controls/assignees").catch(() => []),
-        ]);
-        setControls(ctrls);
-        setFrameworks(fws);
-
-        // Build instant lookup map: { [user_id]: email }
-        const map: Record<string, string> = {};
-        assignees.forEach((a) => {
-          map[a.user_id] = a.email;
-        });
-        setAssigneeMap(map);
-      } catch (err) {
-        console.error("Failed to load controls:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadData();
   }, []);
+
+  const handleRecalculateAll = async () => {
+    setCalculating(true);
+    try {
+      await apiFetch("/v1/controls/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ control_id: null }),
+      });
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || "Failed to recalculate controls.");
+    } finally {
+      setCalculating(false);
+    }
+  };
 
   const filteredControls = controls.filter((ctrl) => {
     const matchesQuery =
@@ -80,16 +99,29 @@ export default function ControlsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-mono font-semibold tracking-wider text-brand-orange uppercase">
-          CONTROL LIBRARY
-        </p>
-        <h1 className="text-2xl font-heading font-bold text-slate-100 mt-1">
-          Compliance Controls
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Review control definitions, assigned owners, and evidence requirements.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-mono font-semibold tracking-wider text-brand-orange uppercase">
+            CONTROL LIBRARY
+          </p>
+          <h1 className="text-2xl font-heading font-bold text-slate-100 mt-1">
+            Compliance Controls
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Review control definitions, assigned owners, and evidence requirements.
+          </p>
+        </div>
+
+        {can(["controls:write"]) && (
+          <button
+            onClick={handleRecalculateAll}
+            disabled={calculating}
+            className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border hover:border-brand-orange text-xs font-semibold rounded-xl text-slate-200 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={calculating ? "animate-spin text-brand-orange" : ""} />
+            <span>{calculating ? "Evaluating..." : "Recalculate All Controls"}</span>
+          </button>
+        )}
       </div>
 
       {/* Filter Toolbar */}
@@ -178,7 +210,6 @@ export default function ControlsPage() {
                         <StatusBadge status={ctrl.status} />
                       </td>
 
-                      {/* Owner Column - shows actual user email */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-surface-raised border border-border flex items-center justify-center text-[10px] font-bold text-brand-orange shrink-0">
