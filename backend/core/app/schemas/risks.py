@@ -61,10 +61,10 @@ class RiskPatchRequest(BaseModel):
     description: str | None = None
     likelihood: int | None = None
     impact: int | None = None
-    treatment: str | None = None
-    treatment_plan: str
+    treatment: RiskTreatmentEnum | None = None
+    treatment_plan: str | None = None
     target_close_date: datetime | None = None
-    status: RiskStatusEnum
+    status: RiskStatusEnum | None = None
 
     model_config = {
         "json_schema_extra": {
