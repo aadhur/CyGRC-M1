@@ -109,8 +109,10 @@ async def provision_user_in_keycloak(
                 },
             )
             login_resp.raise_for_status()
-            access_token = login_resp.json()["access_token"]
-            return access_token, kc_user_id
+            token_json = login_resp.json()
+            access_token = token_json["access_token"]
+            refresh_token = token_json.get("refresh_token")
+            return access_token, refresh_token, kc_user_id
         except (httpx.HTTPError, KeyError, ValueError) as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

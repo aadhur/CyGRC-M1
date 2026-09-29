@@ -17,7 +17,7 @@ interface AuthContextType {
   can: (requiredScopes: string[]) => boolean;
   canAny: (scopes: string[]) => boolean;
   logout: () => void;
-  setSessionToken: (accessToken: string) => void;
+  setSessionToken: (accessToken: string, refreshToken?: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,6 +26,15 @@ function readAccessTokenCookie(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(^| )cygrc_access_token=([^;]+)/);
   return match ? decodeURIComponent(match[2]) : null;
+}
+
+function purgeLegacyCookies() {
+  if (typeof document === "undefined") return;
+  // Delete old un-prefixed cookies that cause duplicates in DevTools
+  const legacy = ["access_token", "refresh_token", "id_token"];
+  for (const name of legacy) {
+    document.cookie = `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -47,20 +56,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const roles: string[] = payload.realm_access?.roles || [];
-        const businessRoles = roles.filter(
-          (r) => !["offline_access", "uma_authorization"].includes(r) && !r.startsWith("default-roles")
-        );
+    const businessRoles = roles.filter(
+      (r) => !["offline_access", "uma_authorization"].includes(r) && !r.startsWith("default-roles")
+    );
 
-      setUser({
-        userId: payload.sub || "",
-        email: payload.email || payload.preferred_username || "Operator",
-        tenantId: payload.tenant_id || "",
-        roles: businessRoles.length > 0 ? businessRoles : ["USER"],
-      });
+    setUser({
+      userId: payload.sub || "",
+      email: payload.email || payload.preferred_username || "Operator",
+      tenantId: payload.tenant_id || "",
+      roles: businessRoles.length > 0 ? businessRoles : ["USER"],
+    });
     setToken(rawToken);
   };
 
   useEffect(() => {
+    purgeLegacyCookies();
     const existing = readAccessTokenCookie();
     if (existing) {
       applyToken(existing);
@@ -68,10 +78,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const setSessionToken = (accessToken: string) => {
+  const setSessionToken = (accessToken: string, refreshToken?: string | null) => {
+    // 1. Access token (readable by JavaScript for UI checks)
     document.cookie = `cygrc_access_token=${encodeURIComponent(
       accessToken
     )}; Path=/; Max-Age=900; SameSite=Lax`;
+
+    // 2. Refresh token (persists 30 days so tenant stays logged in)
+    if (refreshToken) {
+      document.cookie = `cygrc_refresh_token=${encodeURIComponent(
+        refreshToken
+      )}; Path=/; Max-Age=2592000; SameSite=Lax`;
+    }
+
     applyToken(accessToken);
   };
 
