@@ -39,7 +39,7 @@ async def onboard_tenant(
     user_id = uuid7()
     kc_user_id = None
     try:
-        jwt_token, kc_user_id = await provision_user_in_keycloak(
+        jwt_token, refresh_token, kc_user_id = await provision_user_in_keycloak(
             email=payload.email,
             password=payload.password,
             tenant_id=str(tenant_id),
@@ -156,4 +156,5 @@ async def onboard_tenant(
         status=tenant.status,
         message=f"Tenant '{tenant.name}' registered successfully and master frameworks seeded.",
         access_token=jwt_token,
+        refresh_token=refresh_token,
     )

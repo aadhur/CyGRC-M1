@@ -38,7 +38,7 @@ export default function OnboardPage() {
       }
 
       const data = await res.json();
-      setSessionToken(data.access_token);
+      setSessionToken(data.access_token, data.refresh_token);
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "An error occurred during onboarding.");

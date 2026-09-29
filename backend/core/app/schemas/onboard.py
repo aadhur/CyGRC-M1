@@ -16,3 +16,4 @@ class OnboardResponse(BaseModel):
     status: str
     message: str
     access_token: str
+    refresh_token: str | None = None
