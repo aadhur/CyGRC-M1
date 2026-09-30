@@ -1,19 +1,35 @@
-import React from "react";
-import { AppSidebar } from "@/components/AppSidebar";
-import { AppTopBar } from "@/components/AppTopbarTemp";
+"use client";
 
+import { useAuth } from "@/lib/auth/context";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+/**
+ * Authenticated App Layout
+ * Wraps all authenticated pages.
+ * Redirects unauthenticated visitors to /login.
+ */
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex min-h-screen bg-background text-slate-100">
-      <AppSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <AppTopBar />
-        <main className="flex-1 p-8 overflow-y-auto">{children}</main>
-      </div>
-    </div>
-  );
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground">Loading CyGRC…</p>
+      </main>
+    );
+  }
+
+  return <>{children}</>;
 }

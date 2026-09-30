@@ -1,134 +1,111 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { parseJwt, can as canCheck, canAny as canAnyCheck } from "./permissions";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
 
-interface AuthUser {
-  userId: string;
-  email: string;
-  tenantId: string;
-  roles: string[];
-}
+import {
+  hasAllScopes,
+  type Scope,
+} from "./permissions";
 
-interface AuthContextType {
+type AuthUser = {
+  sub?: string;
+  email?: string;
+  name?: string;
+  preferred_username?: string;
+  tenant_id?: string;
+  roles?: string[];
+  scopes?: string[];
+};
+
+type AuthContextValue = {
   user: AuthUser | null;
-  token: string | null;
-  isLoading: boolean;
-  can: (requiredScopes: string[]) => boolean;
-  canAny: (scopes: string[]) => boolean;
-  logout: () => void;
-  setSessionToken: (accessToken: string, refreshToken?: string | null) => void;
-}
+  isAuthenticated: boolean;
+  scopes: string[];
+  roles: string[];
+  tenantId: string | null;
+  can: (requiredScopes: Scope[]) => boolean;
+};
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function readAccessTokenCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(^| )cygrc_access_token=([^;]+)/);
-  return match ? decodeURIComponent(match[2]) : null;
-}
+function decodeAccessToken(): AuthUser | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
 
-function purgeLegacyCookies() {
-  if (typeof document === "undefined") return;
-  // Delete old un-prefixed cookies that cause duplicates in DevTools
-  const legacy = ["access_token", "refresh_token", "id_token"];
-  for (const name of legacy) {
-    document.cookie = `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+  const match = document.cookie.match(
+    /(?:^|;\s*)access_token=([^;]*)/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    const token = decodeURIComponent(match[1]);
+    const payload = token.split(".")[1];
+
+    if (!payload) {
+      return null;
+    }
+
+    const decoded = JSON.parse(
+      atob(payload.replace(/-/g, "+").replace(/_/g, "/")),
+    );
+
+    return {
+      sub: decoded.sub,
+      email: decoded.email,
+      name: decoded.name,
+      preferred_username: decoded.preferred_username,
+      tenant_id: decoded.tenant_id,
+      roles: decoded.roles ?? decoded.realm_access?.roles ?? [],
+      scopes:
+        decoded.scopes ??
+        (typeof decoded.scope === "string"
+          ? decoded.scope.split(" ")
+          : []),
+    };
+  } catch {
+    return null;
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const user = useMemo(() => decodeAccessToken(), []);
 
-  const applyToken = (rawToken: string | null) => {
-    if (!rawToken) {
-      setUser(null);
-      setToken(null);
-      return;
-    }
-    const payload = parseJwt(rawToken);
-    if (!payload) {
-      setUser(null);
-      setToken(null);
-      return;
-    }
+  const value = useMemo<AuthContextValue>(() => {
+    const scopes = user?.scopes ?? [];
+    const roles = user?.roles ?? [];
 
-    const roles: string[] = payload.realm_access?.roles || [];
-    const businessRoles = roles.filter(
-      (r) => !["offline_access", "uma_authorization"].includes(r) && !r.startsWith("default-roles")
-    );
-
-    setUser({
-      userId: payload.sub || "",
-      email: payload.email || payload.preferred_username || "Operator",
-      tenantId: payload.tenant_id || "",
-      roles: businessRoles.length > 0 ? businessRoles : ["USER"],
-    });
-    setToken(rawToken);
-  };
-
-  useEffect(() => {
-    purgeLegacyCookies();
-    const existing = readAccessTokenCookie();
-    if (existing) {
-      applyToken(existing);
-    }
-    setIsLoading(false);
-  }, []);
-
-  const setSessionToken = (accessToken: string, refreshToken?: string | null) => {
-    // 1. Access token (readable by JavaScript for UI checks)
-    document.cookie = `cygrc_access_token=${encodeURIComponent(
-      accessToken
-    )}; Path=/; Max-Age=900; SameSite=Lax`;
-
-    // 2. Refresh token (persists 30 days so tenant stays logged in)
-    if (refreshToken) {
-      document.cookie = `cygrc_refresh_token=${encodeURIComponent(
-        refreshToken
-      )}; Path=/; Max-Age=2592000; SameSite=Lax`;
-    }
-
-    applyToken(accessToken);
-  };
-
-  const logout = () => {
-    window.location.href = "/auth/logout";
-  };
-
-  const checkScope = (requiredScopes: string[]): boolean => {
-    if (!user) return false;
-    return canCheck(user.roles, requiredScopes);
-  };
-
-  const checkAnyScope = (scopes: string[]): boolean => {
-    if (!user) return false;
-    return canAnyCheck(user.roles, scopes);
-  };
+    return {
+      user,
+      isAuthenticated: Boolean(user),
+      scopes,
+      roles,
+      tenantId: user?.tenant_id ?? null,
+      can: (requiredScopes) => hasAllScopes(scopes, requiredScopes),
+    };
+  }, [user]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        can: checkScope,
-        canAny: checkAnyScope,
-        logout,
-        setSessionToken,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth(): AuthContextType {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within an AuthProvider");
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth must be used inside AuthProvider");
   }
-  return ctx;
+
+  return context;
 }

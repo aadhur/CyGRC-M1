@@ -1,13 +1,20 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
 
-export default async function IndexPage() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("cygrc_access_token");
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/context";
 
-  if (token) {
-    redirect("/dashboard");
-  } else {
-    redirect("/login");
-  }
+export default function Home() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    router.replace(isAuthenticated ? "/dashboard" : "/login");
+  }, [isAuthenticated, router]);
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background">
+      <p className="text-sm text-muted-foreground">Loading CyGRC...</p>
+    </main>
+  );
 }

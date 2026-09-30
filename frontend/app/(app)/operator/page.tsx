@@ -1,210 +1,505 @@
 "use client";
 
-import React, { useState } from "react";
-import { apiFetch } from "@/lib/api/client";
-import { Terminal, Plus, Activity, Check, CircleAlert, Loader2 } from "lucide-react";
+/**
+ * Platform Operator Page
+ *
+ * Provides a cross-tenant administration surface for platform operators.
+ *
+ * Permissions (scope-based per §2.7 — never role-name based):
+ *   - Page access        : operator:admin
+ *   - Tenant table       : operator:admin  (GET /v1/operators/tenants)
+ *   - Framework creation : operator:admin  (POST /v1/frameworks)
+ *
+ * These are direct client-side calls — no server-side business logic wrapper.
+ */
 
-interface TenantItem {
+import { useAuth } from "@/lib/auth/context";
+import { SCOPES } from "@/lib/auth/permissions";
+import { api } from "@/lib/api/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  ShieldAlert,
+  RefreshCw,
+  Plus,
+  Building2,
+  BookOpen,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type TenantStatus = "provisioning" | "active" | "deleting";
+
+interface Tenant {
   tenant_id: string;
   name: string;
-  status: string;
+  status: TenantStatus;
   plan: string;
   created_at: string;
 }
 
-export default function OperatorPage() {
-  const [tenants, setTenants] = useState<TenantItem[]>([]);
-  const [tenantsLoaded, setTenantsLoaded] = useState(false);
-  const [tenantsLoading, setTenantsLoading] = useState(false);
+interface Framework {
+  framework_id: string;
+  code: string;
+  version: string;
+  name: string;
+}
 
-  const [form, setForm] = useState({ code: "", version: "", name: "" });
-  const [formLoading, setFormLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+interface CreateFrameworkPayload {
+  code: string;
+  version: string;
+  name: string;
+}
 
-  const handleLoadTenants = async () => {
-    setTenantsLoading(true);
-    setError(null);
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TENANT_STATUS_CONFIG: Record<
+  TenantStatus,
+  { label: string; icon: React.ReactNode; className: string }
+> = {
+  active: {
+    label: "Active",
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    className: "text-emerald-400 bg-emerald-400/10 ring-emerald-400/20",
+  },
+  provisioning: {
+    label: "Provisioning",
+    icon: <Clock className="h-3.5 w-3.5" />,
+    className: "text-amber-400 bg-amber-400/10 ring-amber-400/20",
+  },
+  deleting: {
+    label: "Deleting",
+    icon: <XCircle className="h-3.5 w-3.5" />,
+    className: "text-red-400 bg-red-400/10 ring-red-400/20",
+  },
+};
+
+const PLAN_STYLES: Record<string, string> = {
+  enterprise: "text-violet-400 bg-violet-400/10 ring-violet-400/20",
+  pro:        "text-blue-400   bg-blue-400/10   ring-blue-400/20",
+  starter:    "text-zinc-400   bg-zinc-400/10   ring-zinc-400/20",
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function TenantStatusBadge({ status }: { status: TenantStatus }) {
+  const config =
+    TENANT_STATUS_CONFIG[status] ?? TENANT_STATUS_CONFIG.provisioning;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+        config.className
+      )}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function PlanBadge({ plan }: { plan: string }) {
+  const planKey = plan.toLowerCase();
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize",
+        PLAN_STYLES[planKey] ?? "text-zinc-400 bg-zinc-400/10 ring-zinc-400/20"
+      )}
+    >
+      {plan}
+    </span>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex items-start gap-3 border-b border-border px-6 py-5">
+        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ─── Tenant Table ─────────────────────────────────────────────────────────────
+
+function TenantTable() {
+  const {
+    data: tenants = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery<Tenant[]>({
+    queryKey: ["operator-tenants"],
+    queryFn: () => api.get<Tenant[]>("/v1/operators/tenants"),
+  });
+
+  function formatDate(iso: string) {
     try {
-      const res = await apiFetch<{ tenants: TenantItem[] }>("/v1/operators/tenants");
-      setTenants(res.tenants || []);
-      setTenantsLoaded(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to query tenant registry.");
-    } finally {
-      setTenantsLoading(false);
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(new Date(iso));
+    } catch {
+      return iso;
     }
-  };
-
-  const handleRegisterFramework = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormLoading(true);
-    setMessage(null);
-    setError(null);
-    try {
-      await apiFetch("/v1/frameworks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      setMessage(`Master Framework '${form.code}' registered successfully.`);
-      setForm({ code: "", version: "", name: "" });
-    } catch (err: any) {
-      setError(err.message || "Failed to register framework.");
-    } finally {
-      setFormLoading(false);
-    }
-  };
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-xs font-mono font-semibold tracking-wider text-brand-orange uppercase">
-          SYSTEM OPERATIONS
-        </p>
-        <h1 className="text-2xl font-heading font-bold text-slate-100 mt-1">
-          Platform Operator Console
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Administrative control plane for global tenant registries and master catalog definitions.
-        </p>
+    <SectionCard
+      title="Tenant Registry"
+      description="All tenants provisioned on this platform."
+      icon={<Building2 className="h-4 w-4" />}
+    >
+      {/* Controls bar */}
+      <div className="flex items-center justify-between border-b border-border px-6 py-3">
+        <span className="text-sm text-muted-foreground">
+          {isLoading
+            ? "Loading…"
+            : `${tenants.length} tenant${tenants.length !== 1 ? "s" : ""}`}
+        </span>
+        <button
+          id="refresh-tenants-btn"
+          type="button"
+          onClick={() => refetch()}
+          disabled={isLoading}
+          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+          title="Refresh"
+        >
+          <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+        </button>
       </div>
 
-      {error && (
-        <div className="p-3 bg-rose-950/60 border border-rose-800 text-rose-300 rounded-xl text-xs flex items-center gap-2">
-          <CircleAlert size={16} />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {message && (
-        <div className="p-3 bg-emerald-950/60 border border-emerald-800 text-emerald-300 rounded-xl text-xs flex items-center gap-2">
-          <Check size={16} />
-          <span>{message}</span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Action 1: Tenant Registry Viewer */}
-        <section className="p-6 bg-surface border border-border rounded-2xl flex flex-col justify-between">
-          <div>
-            <div className="w-10 h-10 rounded-xl bg-surface-raised border border-border flex items-center justify-center text-slate-300 mb-4">
-              <Terminal size={20} />
-            </div>
-            <h2 className="text-lg font-heading font-bold text-slate-100">
-              Tenant Registry
-            </h2>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
-              Query the global non-RLS tenants database to inspect registered workspaces.
-            </p>
-
-            <button
-              onClick={handleLoadTenants}
-              disabled={tenantsLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-surface-raised hover:bg-surface-raised/80 border border-border text-xs text-slate-200 font-semibold rounded-xl transition-colors disabled:opacity-50"
-            >
-              {tenantsLoading ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Activity size={14} />
-              )}
-              <span>{tenantsLoaded ? "Refresh Tenants" : "Load Tenants"}</span>
-            </button>
-
-            {tenantsLoaded && (
-              <div className="mt-4 border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-surface-raised/80 font-mono text-slate-400">
-                    <tr>
-                      <th className="p-3">Tenant</th>
-                      <th className="p-3">Plan</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Created</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {tenants.map((t) => (
-                      <tr key={t.tenant_id}>
-                        <td className="p-3 font-semibold text-slate-200">{t.name}</td>
-                        <td className="p-3 text-slate-300">{t.plan}</td>
-                        <td className="p-3">
-                          <span className="text-emerald-400 font-mono">{t.status}</span>
-                        </td>
-                        <td className="p-3 font-mono text-slate-500">
-                          {new Date(t.created_at).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {/* Loading skeleton */}
+      {isLoading && (
+        <div className="divide-y divide-border">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4">
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
               </div>
+              <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Error */}
+      {isError && !isLoading && (
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <ShieldAlert className="h-7 w-7 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Failed to load tenants.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="text-sm text-primary underline-offset-2 hover:underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {/* Empty */}
+      {!isLoading && !isError && tenants.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-12">
+          <p className="text-sm text-muted-foreground">No tenants found.</p>
+        </div>
+      )}
+
+      {/* Table */}
+      {!isLoading && !isError && tenants.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <th className="px-6 py-3">Tenant Name</th>
+                <th className="px-6 py-3">Plan</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">Created</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {tenants.map((tenant) => (
+                <tr
+                  key={tenant.tenant_id}
+                  className="transition-colors hover:bg-muted/30"
+                >
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-foreground">
+                      {tenant.name}
+                    </p>
+                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                      {tenant.tenant_id}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <PlanBadge plan={tenant.plan} />
+                  </td>
+                  <td className="px-6 py-4">
+                    <TenantStatusBadge status={tenant.status} />
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-muted-foreground">
+                      {formatDate(tenant.created_at)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── Framework Creation Form ──────────────────────────────────────────────────
+
+function FrameworkForm() {
+  const queryClient = useQueryClient();
+
+  const [code, setCode]       = useState("");
+  const [version, setVersion] = useState("");
+  const [name, setName]       = useState("");
+  const [errors, setErrors]   = useState<Partial<Record<"code" | "version" | "name", string>>>({});
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [apiError, setApiError]     = useState<string | null>(null);
+
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateFrameworkPayload) =>
+      api.post<Framework>("/v1/frameworks", payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["frameworks"] });
+      setCode("");
+      setVersion("");
+      setName("");
+      setErrors({});
+      setApiError(null);
+      setSuccessMsg(`Framework "${data.name}" (${data.code}) created.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
+    },
+    onError: (err: Error) => {
+      setApiError(err.message ?? "Failed to create framework.");
+    },
+  });
+
+  function validate(): boolean {
+    const next: typeof errors = {};
+    if (!code.trim())    next.code    = "Code is required.";
+    if (!version.trim()) next.version = "Version is required.";
+    if (!name.trim())    next.name    = "Name is required.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setApiError(null);
+    if (!validate()) return;
+    createMutation.mutate({
+      code: code.trim().toUpperCase(),
+      version: version.trim(),
+      name: name.trim(),
+    });
+  }
+
+  return (
+    <SectionCard
+      title="Add Framework"
+      description="Register a new master compliance framework available to all tenants."
+      icon={<BookOpen className="h-4 w-4" />}
+    >
+      <form onSubmit={handleSubmit} noValidate className="space-y-5 px-6 py-6">
+        <div className="grid gap-5 sm:grid-cols-2">
+          {/* Code */}
+          <div>
+            <label
+              htmlFor="framework-code"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Code
+              <span className="ml-0.5 text-destructive">*</span>
+            </label>
+            <input
+              id="framework-code"
+              type="text"
+              value={code}
+              onChange={(e) => { setCode(e.target.value); setErrors((p) => ({ ...p, code: undefined })); }}
+              placeholder="e.g. ISO27001"
+              disabled={createMutation.isPending}
+              aria-invalid={!!errors.code}
+              className={cn(
+                "w-full rounded-lg border bg-muted px-3 py-2 font-mono text-sm text-foreground placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+                errors.code ? "border-destructive" : "border-input"
+              )}
+            />
+            {errors.code && (
+              <p className="mt-1 text-xs text-destructive">{errors.code}</p>
             )}
           </div>
-        </section>
 
-        {/* Action 2: Register New Master Framework Form */}
-        <section className="p-6 bg-surface border border-border rounded-2xl">
-          <div className="w-10 h-10 rounded-xl bg-brand-orange/15 border border-brand-orange/40 flex items-center justify-center text-brand-orange mb-4">
-            <Plus size={20} />
-          </div>
-          <h2 className="text-lg font-heading font-bold text-slate-100">
-            Register Master Framework
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 mb-6">
-            Register a standard into the shared platform catalog (POST /v1/frameworks).
-          </p>
-
-          <form onSubmit={handleRegisterFramework} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Framework Code
-              </label>
-              <input
-                required
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder="e.g. SOC2:2017"
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-sm font-mono text-slate-200 focus:outline-none focus:border-brand-orange"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Version Identifier
-              </label>
-              <input
-                required
-                value={form.version}
-                onChange={(e) => setForm({ ...form, version: e.target.value })}
-                placeholder="e.g. 2017"
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-sm text-slate-200 focus:outline-none focus:border-brand-orange"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Full Framework Name
-              </label>
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. SOC 2 Trust Services Criteria 2017"
-                className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-sm text-slate-200 focus:outline-none focus:border-brand-orange"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={formLoading}
-              className="w-full py-2.5 bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-semibold rounded-xl transition-colors shadow flex items-center justify-center gap-2"
+          {/* Version */}
+          <div>
+            <label
+              htmlFor="framework-version"
+              className="mb-1.5 block text-sm font-medium text-foreground"
             >
-              {formLoading && <Loader2 size={14} className="animate-spin" />}
-              <span>{formLoading ? "Registering..." : "Register Framework"}</span>
-            </button>
-          </form>
-        </section>
+              Version
+              <span className="ml-0.5 text-destructive">*</span>
+            </label>
+            <input
+              id="framework-version"
+              type="text"
+              value={version}
+              onChange={(e) => { setVersion(e.target.value); setErrors((p) => ({ ...p, version: undefined })); }}
+              placeholder="e.g. 2022"
+              disabled={createMutation.isPending}
+              aria-invalid={!!errors.version}
+              className={cn(
+                "w-full rounded-lg border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+                errors.version ? "border-destructive" : "border-input"
+              )}
+            />
+            {errors.version && (
+              <p className="mt-1 text-xs text-destructive">{errors.version}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Name (full row) */}
+        <div>
+          <label
+            htmlFor="framework-name"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Full Name
+            <span className="ml-0.5 text-destructive">*</span>
+          </label>
+          <input
+            id="framework-name"
+            type="text"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: undefined })); }}
+            placeholder="e.g. ISO/IEC 27001:2022 — Information Security"
+            disabled={createMutation.isPending}
+            aria-invalid={!!errors.name}
+            className={cn(
+              "w-full rounded-lg border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+              errors.name ? "border-destructive" : "border-input"
+            )}
+          />
+          {errors.name && (
+            <p className="mt-1 text-xs text-destructive">{errors.name}</p>
+          )}
+        </div>
+
+        {/* Feedback */}
+        {successMsg && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+            {successMsg}
+          </div>
+        )}
+        {apiError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {apiError}
+          </div>
+        )}
+
+        {/* Submit */}
+        <div className="flex justify-end">
+          <button
+            id="create-framework-btn"
+            type="submit"
+            disabled={createMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {createMutation.isPending ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Creating…
+              </>
+            ) : (
+              <>
+                <Plus className="h-3.5 w-3.5" />
+                Create framework
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </SectionCard>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function OperatorPage() {
+  const { can } = useAuth();
+
+  // Scope-based gate: operator:admin is the correct scope from auth.py
+  const canAccess = can([SCOPES.OPERATOR_ADMIN]);
+
+  if (!canAccess) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <ShieldAlert className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-foreground">
+            Access Restricted
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You need the{" "}
+            <code className="text-primary">operator:admin</code> scope to access
+            the Platform Operator console.
+          </p>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Platform Operator
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cross-tenant administration console. Changes made here affect all
+          tenants on the platform.
+        </p>
+      </div>
+
+      {/* Tenant registry */}
+      <TenantTable />
+
+      {/* Framework creation */}
+      <FrameworkForm />
     </div>
   );
 }

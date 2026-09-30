@@ -22,4 +22,4 @@ out/
 .env
 .env.local
 
-!.env.example
+!.env.examplevenv312/

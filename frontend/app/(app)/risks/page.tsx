@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from "react";
 import RiskTable from "@/components/risks/RiskTable";
 import RiskCreateModal from "@/components/risks/RiskCreateModal";
+import { apiFetch } from "@/lib/api/client";
 
 // Replace this with your project's actual path to useAuth if it differs
-import { useAuth } from "@/hooks/useAuth"; 
+import { useAuth } from "@/lib/auth/context";
 
 interface Risk {
   id: string;
@@ -24,8 +25,8 @@ interface Risk {
 export default function RisksPage() {
   // Gracefully fallback if hook return values are temporarily undefined during loading
   const authContext = useAuth() || {};
-  const hasPermission = authContext.hasPermission;
-  const authLoading = authContext.isLoading ?? false;
+  const hasPermission = (scope: string) => authContext.can([scope]);
+  const authLoading = authContext.isLoading;
 
   const [risks, setRisks] = useState<Risk[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -38,26 +39,9 @@ export default function RisksPage() {
   const fetchRisks = async () => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const response = await fetch("/v1/risks", {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.status === 401) {
-        setError("Unauthorized. Please log in again.");
-        return;
-      }
-      if (response.status === 403) {
-        setError("Forbidden. You do not have permission to view this resource.");
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Failed to fetch risks from the register.");
-      }
-
-      const data = await response.json();
+      const data = await apiFetch<Risk[]>("/v1/risks");
       setRisks(Array.isArray(data) ? data : []);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
