@@ -1,6 +1,8 @@
+from app.api.v1.ai import router as ai_router
 from app.api.v1.audit_log import router as log_audit_router
 from app.api.v1.audits import router as audit_router
 from app.api.v1.controls import router as controls_router
+from app.api.v1.dpdp import router as dpdp_router
 from app.api.v1.evidence import router as evidence_router
 from app.api.v1.frameworks import router as frameworks_router
 from app.api.v1.onboard import router as onboard_router
@@ -24,23 +26,23 @@ app = FastAPI(
 # Middlewares
 # ------------------------------------------------------------------------------
 
-# Layer 1: CORS (Outermost - attaches headers even on errors)
+# Layer 1: Keycloak Auth Middleware
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,  # e.g. ["http://localhost:3000"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    KeycloakAuthMiddleware,
+    keycloak_jwks_url=settings.KEYCLOAK_JWKS_URL,
+    app_env=settings.APP_ENV,
 )
 
 # Layer 2: Audit Logging Middleware
 app.add_middleware(AuditLogMiddleware)
 
-# Layer 3: Keycloak Auth Middleware (Ensure in-memory JWKS caching is enabled inside)
+# Layer 3: CORS (OUTERMOST)
 app.add_middleware(
-    KeycloakAuthMiddleware,
-    keycloak_jwks_url=settings.KEYCLOAK_JWKS_URL,
-    app_env=settings.APP_ENV,
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ------------------------------------------------------------------------------
@@ -58,6 +60,10 @@ app.include_router(evidence_router, prefix="/v1/evidence", tags=["Evidence"])
 app.include_router(log_audit_router, prefix="/v1/audit-log", tags=["Audit Log"])
 app.include_router(risk_router, prefix="/v1/risks", tags=["Risks"])
 app.include_router(audit_router, prefix="/v1/audits", tags=["Audits"])
+app.include_router(
+    dpdp_router, prefix="/v1/dpdp/breach-clock", tags=["DPDP Breach Clock"]
+)
+app.include_router(ai_router, prefix="/v1/ai", tags=["AI"])
 
 
 @app.get("/healthz", tags=["Health"])

@@ -6,6 +6,13 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
+class AssigneeItem(BaseModel):
+    user_id: UUID
+    email: str
+    role: str
+    model_config = {"from_attributes": True}
+
+
 class ControlResponse(BaseModel):
     control_id: UUID
     framework_id: UUID
@@ -16,6 +23,8 @@ class ControlResponse(BaseModel):
     status: str
     notes: str | None = None
     created_at: datetime | None = None
+    requirement_id: UUID | None = None
+    owner_email: str | None = None
 
     model_config = {"from_attributes": True}
 

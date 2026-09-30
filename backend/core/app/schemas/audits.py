@@ -8,7 +8,7 @@ from app.db.models import (
     FindingStatusEnum,
 )
 from app.schemas.controls import ControlResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # --- Cycle & Scope Schemas ---
@@ -32,8 +32,20 @@ class AuditControlReviewCreate(BaseModel):
     notes: str | None = None
 
 
+class AuditDetailResponse(BaseModel):
+    audit_id: UUID
+    framework_id: UUID
+    period_start: date | datetime
+    period_end: date | datetime
+    status: AuditStatusEnum
+    signed_off_by: UUID | None = None
+    scoped_control_count: int = 0
+    control_ids: list[UUID] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AuditControlReviewResponse(BaseModel):
-    tenant_id: UUID
     audit_id: UUID
     control_id: UUID
     verdict: AuditVerdictEnum
