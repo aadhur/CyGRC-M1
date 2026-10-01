@@ -926,6 +926,10 @@ class DpdpBreachClock(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 # =============================================================================
 #                               AI DRAFT TABLE
