@@ -1,24 +1,23 @@
 import type { Metadata } from "next";
-import { AuthProvider } from "@/lib/auth/context";
-import { QueryProvider } from "@/lib/query-provider";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth/context";
 
 export const metadata: Metadata = {
   title: "CyGRC",
-  description: "Cybersecurity Governance, Risk and Compliance Platform",
+  description: "Enterprise Continuous Compliance and Risk Workspace",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>
-        <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
-        </QueryProvider>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="bg-background text-slate-100 min-h-screen"
+        suppressHydrationWarning
+      >
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

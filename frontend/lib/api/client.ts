@@ -1,112 +1,96 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+import { AUTH_CONFIG } from "@/lib/auth/config";
 
-type RequestOptions = RequestInit & {
-  retry?: boolean;
-};
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}
 
-async function refreshAccessToken(): Promise<boolean> {
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string | null) => void> = [];
+
+function notifyRefreshed(token: string | null) {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
+async function refreshAccessToken(): Promise<string | null> {
   try {
-    const response = await fetch("/api/auth/refresh", {
+    const res = await fetch("/api/auth/refresh", {
       method: "POST",
       credentials: "include",
     });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const newToken = data.access_token || null;
 
-    return response.ok;
+    if (newToken && typeof document !== "undefined") {
+      document.cookie = `cygrc_access_token=${encodeURIComponent(
+        newToken
+      )}; Path=/; Max-Age=900; SameSite=Lax`;
+    }
+
+    return newToken;
   } catch {
-    return false;
+    return null;
   }
 }
-
 export async function apiFetch<T>(
-  path: string,
-  options: RequestOptions = {},
+  endpoint: string,
+  options: RequestInit = {}
 ): Promise<T> {
-  const { retry = true, ...fetchOptions } = options;
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${AUTH_CONFIG.apiBaseUrl}${endpoint}`;
 
-  const isFormData = fetchOptions.body instanceof FormData;
+  let token = getCookie("cygrc_access_token");
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...fetchOptions,
-    credentials: "include",
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      ...fetchOptions.headers,
-    },
-  });
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
-  if (response.status === 401 && retry) {
-    const refreshed = await refreshAccessToken();
+  let response = await fetch(url, { ...options, headers });
 
-    if (refreshed) {
-      return apiFetch<T>(path, {
-        ...options,
-        retry: false,
+  // 401 Interceptor: Trade refresh token and retry once
+  if (response.status === 401) {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      const newToken = await refreshAccessToken();
+      isRefreshing = false;
+      notifyRefreshed(newToken);
+
+      if (!newToken) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        throw new Error("Session expired. Please sign in again.");
+      }
+      token = newToken;
+    } else {
+      token = await new Promise<string | null>((resolve) => {
+        refreshSubscribers.push(resolve);
       });
+      if (!token) {
+        throw new Error("Session expired. Please sign in again.");
+      }
     }
 
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
-
-    throw new Error("Authentication expired");
+    const retryHeaders = new Headers(options.headers || {});
+    retryHeaders.set("Authorization", `Bearer ${token}`);
+    response = await fetch(url, { ...options, headers: retryHeaders });
   }
 
   if (!response.ok) {
-    let message = `API request failed: ${response.status}`;
-
+    let errorDetail = "API Request failed";
     try {
-      const error = await response.json();
-
-      if (typeof error?.detail === "string") {
-        message = error.detail;
-      }
+      const errJson = await response.json();
+      errorDetail = errJson.detail || errJson.message || JSON.stringify(errJson);
     } catch {
-      // Keep the default error message.
+      errorDetail = await response.text();
     }
-
-    throw new Error(message);
+    throw new Error(errorDetail || `HTTP Error ${response.status}`);
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
+  return response.json();
 }
-
-export const api = {
-  get: <T>(path: string, options?: RequestOptions) =>
-    apiFetch<T>(path, {
-      ...options,
-      method: "GET",
-    }),
-
-  post: <T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ) =>
-    apiFetch<T>(path, {
-      ...options,
-      method: "POST",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }),
-
-  patch: <T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ) =>
-    apiFetch<T>(path, {
-      ...options,
-      method: "PATCH",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }),
-
-  delete: <T>(path: string, options?: RequestOptions) =>
-    apiFetch<T>(path, {
-      ...options,
-      method: "DELETE",
-    }),
-};
