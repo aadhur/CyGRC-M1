@@ -101,6 +101,17 @@ export const AUDIT_VERDICTS: Record<string, string> = {
     "bg-amber-950/60 text-amber-400 border border-amber-700/60",
 };
 
+export const AUDIT_STATUS_STYLES: Record<string, string> = {
+  PLANNING:
+    "bg-slate-800/80 text-slate-300 border border-slate-700/60",
+  IN_PROGRESS:
+    "bg-blue-950/60 text-blue-400 border border-blue-700/60",
+  REMEDIATION:
+    "bg-amber-950/60 text-amber-400 border border-amber-700/60",
+  CLOSED:
+    "bg-emerald-950/60 text-emerald-400 border border-emerald-700/60",
+};
+
 export const FINDING_SEVERITIES: Record<string, string> = {
   CRITICAL: "bg-rose-950 text-rose-400 border border-rose-800 font-bold",
   HIGH: "bg-orange-950 text-orange-400 border border-orange-800",

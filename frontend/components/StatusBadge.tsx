@@ -1,4 +1,5 @@
 import {
+  AUDIT_STATUS_STYLES,
   AUDIT_VERDICTS,
   CONTROL_STATUS_MAP,
   EVIDENCE_STATUS_MAP,
@@ -33,18 +34,26 @@ export function StatusBadge({
   } else if (type === "evidence") {
     config = EVIDENCE_STATUS_MAP[normalized];
   } else if (type === "audit") {
-    const badgeClass = AUDIT_VERDICTS[normalized];
+    const lifecycleClass = AUDIT_STATUS_STYLES[normalized];
+    const verdictClass = AUDIT_VERDICTS[normalized];
 
-    if (badgeClass) {
+    if (lifecycleClass || verdictClass) {
+      const badgeClass = lifecycleClass ?? verdictClass ?? "";
+
       config = {
         label: formatStatusLabel(normalized),
         badgeClass,
         dotClass:
-          normalized === "PASS"
+          normalized === "CLOSED" || normalized === "PASS"
             ? "bg-emerald-400"
-            : normalized === "FAIL"
-              ? "bg-rose-400"
-              : "bg-amber-400",
+            : normalized === "IN_PROGRESS"
+              ? "bg-blue-400"
+              : normalized === "REMEDIATION" ||
+                  normalized === "EXCEPTION"
+                ? "bg-amber-400"
+                : normalized === "FAIL"
+                  ? "bg-rose-400"
+                  : "bg-slate-400",
       };
     }
   } else if (type === "risk") {
@@ -68,7 +77,8 @@ export function StatusBadge({
 
   const finalConfig = config ?? {
     label: formatStatusLabel(status),
-    badgeClass: "border border-slate-700 bg-slate-800 text-slate-400",
+    badgeClass:
+      "border border-slate-700 bg-slate-800 text-slate-400",
     dotClass: "bg-slate-400",
   };
 
@@ -76,7 +86,9 @@ export function StatusBadge({
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide ${finalConfig.badgeClass}`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${finalConfig.dotClass}`} />
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${finalConfig.dotClass}`}
+      />
       {finalConfig.label}
     </span>
   );
