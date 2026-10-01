@@ -43,6 +43,98 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const ROLE_SCOPES: Record<string, string[]> = {
+  PLATFORM_OPERATOR: [
+    "operator:admin",
+    "operator:break-glass",
+    "frameworks:read",
+    "frameworks:write",
+  ],
+
+  TENANT_ADMIN: [
+    "controls:read",
+    "controls:write",
+    "evidence:read",
+    "evidence:write",
+    "evidence:review",
+    "frameworks:read",
+    "auditlog:read",
+    "audits:read",
+    "audits:write",
+    "audits:export",
+    "risks:read",
+    "risks:write",
+    "risks:close",
+    "dpdp:read",
+    "dpdp:write",
+    "users:read",
+    "users:write",
+    "users:delete",
+    "ai:draft",
+    "ai:approve",
+  ],
+
+  COMPLIANCE_MANAGER: [
+    "controls:read",
+    "controls:write",
+    "evidence:read",
+    "evidence:review",
+    "frameworks:read",
+    "risks:read",
+    "risks:close",
+    "ai:draft",
+    "ai:approve",
+  ],
+
+  INTERNAL_AUDITOR: [
+    "controls:read",
+    "evidence:read",
+    "audits:read",
+    "audits:write",
+    "audits:export",
+    "frameworks:read",
+  ],
+
+  RISK_OWNER: [
+    "controls:read",
+    "risks:read",
+    "risks:write",
+    "evidence:read",
+    "risks:close",
+    "frameworks:read",
+  ],
+
+  CISO: [
+    "evidence:review",
+    "evidence:read",
+    "controls:read",
+    "risks:read",
+    "audits:read",
+    "dpdp:read",
+    "auditlog:read",
+    "users:read",
+    "frameworks:read",
+    "risks:close",
+  ],
+
+  DPO: [
+    "dpdp:read",
+    "dpdp:write",
+    "controls:read",
+    "ai:draft",
+  ],
+
+  ENGINEERING_LEAD: [
+    "controls:read",
+    "evidence:write",
+  ],
+
+  USER: [
+    "controls:read",
+    "evidence:write",
+  ],
+};
+
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") {
     return null;
@@ -71,18 +163,31 @@ function decodeToken(token: string): AuthUser | null {
 
     const decoded = JSON.parse(atob(padded));
 
+    const roles: string[] =
+      decoded.roles ?? decoded.realm_access?.roles ?? [];
+
+    const tokenScopes: string[] =
+      decoded.scopes ??
+      (typeof decoded.scope === "string"
+        ? decoded.scope.split(" ")
+        : []);
+
+    const roleScopes = roles.flatMap(
+      (role) => ROLE_SCOPES[String(role).toUpperCase()] ?? [],
+    );
+
+    const scopes = Array.from(
+      new Set([...tokenScopes, ...roleScopes]),
+    );
+
     return {
       sub: decoded.sub,
       email: decoded.email,
       name: decoded.name,
       preferred_username: decoded.preferred_username,
       tenant_id: decoded.tenant_id,
-      roles: decoded.roles ?? decoded.realm_access?.roles ?? [],
-      scopes:
-        decoded.scopes ??
-        (typeof decoded.scope === "string"
-          ? decoded.scope.split(" ")
-          : []),
+      roles,
+      scopes,
     };
   } catch {
     return null;

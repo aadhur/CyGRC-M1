@@ -1,15 +1,13 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/context";
-import BreakGlassBanner from "@/components/BreakGlassBanner";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
-/**
- * Authenticated App Layout
- * Wraps all authenticated pages.
- * Redirects unauthenticated visitors to /login.
- */
+import { AppSidebar } from "@/components/AppSidebar";
+import { AppTopBar } from "@/components/AppTopbarTemp";
+import BreakGlassBanner from "@/components/BreakGlassBanner";
+import { useAuth } from "@/lib/auth/context";
+
 export default function AppLayout({
   children,
 }: {
@@ -17,25 +15,44 @@ export default function AppLayout({
 }) {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [mounted, isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+  // Server render and first client render are identical.
+  if (!mounted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Loading CyGRC…</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-950">
+        <p className="text-sm text-slate-400">Loading CyGRC…</p>
       </main>
     );
   }
 
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <>
-      <BreakGlassBanner />
-      {children}
-    </>
+    <div className="flex min-h-screen bg-slate-950">
+      <AppSidebar />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AppTopBar />
+
+        <BreakGlassBanner />
+
+        <main className="flex-1 overflow-auto p-6">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }
