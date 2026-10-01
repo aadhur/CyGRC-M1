@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ConfirmModalProps {
@@ -41,21 +41,21 @@ export function ConfirmModal({
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
-      {/* Backdrop overlay */}
       <div
-        className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
-        onClick={() => !isLoading && onClose()}
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+        onClick={() => {
+          if (!isLoading) onClose();
+        }}
       />
 
-      {/* Modal Dialog Card */}
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl transition-all sm:my-8 animate-in fade-in-0 zoom-in-95 duration-150">
+      <div className="relative z-10 w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
         <div className="flex items-start gap-4">
           <div
             className={cn(
               "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border shadow-inner",
               isDanger
-                ? "bg-rose-950/50 text-rose-400 border-rose-800/60"
-                : "bg-amber-950/50 text-amber-400 border-amber-800/60"
+                ? "border-rose-800/60 bg-rose-950/50 text-rose-400"
+                : "border-amber-800/60 bg-amber-950/50 text-amber-400"
             )}
           >
             {isDanger ? (
@@ -69,7 +69,8 @@ export function ConfirmModal({
             <h3 className="text-lg font-semibold tracking-tight text-zinc-100">
               {title}
             </h3>
-            <div className="mt-2 text-sm text-zinc-400 leading-relaxed">
+
+            <div className="mt-2 text-sm leading-relaxed text-zinc-400">
               {description}
             </div>
 
@@ -77,22 +78,22 @@ export function ConfirmModal({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-zinc-800/80 pt-4">
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-zinc-800/80 pt-4 sm:flex-row sm:justify-end">
           <button
             type="button"
             disabled={isLoading}
             onClick={onClose}
-            className="inline-flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition disabled:opacity-50 cursor-pointer"
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {cancelText}
           </button>
+
           <button
             type="button"
             disabled={disabled || isLoading}
             onClick={() => onConfirm()}
             className={cn(
-              "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition disabled:opacity-50 cursor-pointer shadow-sm",
+              "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50",
               isDanger
                 ? "bg-rose-600 hover:bg-rose-500 focus-visible:ring-rose-500"
                 : "bg-amber-600 hover:bg-amber-500 focus-visible:ring-amber-500"
