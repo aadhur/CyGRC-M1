@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth/context";
+import BreakGlassBanner from "@/components/BreakGlassBanner";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -31,5 +32,10 @@ export default function AppLayout({
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <BreakGlassBanner />
+      {children}
+    </>
+  );
 }

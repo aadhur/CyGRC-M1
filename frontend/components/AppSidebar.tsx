@@ -146,7 +146,7 @@ export function AppSidebar() {
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
           <div className="overflow-hidden">
             <div className="text-xs font-semibold text-slate-200 uppercase truncate">
-              {user?.roles[0]?.replaceAll("_", " ") || "USER"}
+              {user?.roles?.[0]?.replaceAll("_", " ") || "USER"}
             </div>
             <div className="text-[10px] text-slate-500 font-mono truncate">
               {user?.email}

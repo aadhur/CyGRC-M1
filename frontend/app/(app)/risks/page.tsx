@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api/client";
 
 // Replace this with your project's actual path to useAuth if it differs
 import { useAuth } from "@/lib/auth/context";
+import { type Scope } from "@/lib/auth/permissions";
 
 interface Risk {
   id: string;
@@ -24,8 +25,8 @@ interface Risk {
 
 export default function RisksPage() {
   // Gracefully fallback if hook return values are temporarily undefined during loading
-  const authContext = useAuth() || {};
-  const hasPermission = (scope: string) => authContext.can([scope]);
+  const authContext = useAuth();
+  const hasPermission = (scope: Scope) => authContext.can([scope]);
   const authLoading = authContext.isLoading;
 
   const [risks, setRisks] = useState<Risk[]>([]);

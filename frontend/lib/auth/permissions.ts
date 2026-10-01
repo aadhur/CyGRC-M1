@@ -26,6 +26,9 @@ export const SCOPES = {
 
   OPERATOR_ADMIN: "operator:admin",
   OPERATOR_BREAK_GLASS: "operator:break-glass",
+
+  AI_DRAFT: "ai:draft",
+  AI_APPROVE: "ai:approve",
 } as const;
 
 export type Scope = (typeof SCOPES)[keyof typeof SCOPES];
