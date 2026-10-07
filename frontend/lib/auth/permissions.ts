@@ -1,6 +1,40 @@
-/**
- * Synchronized with backend/core/app/middleware/auth.py
- */
+export const SCOPES = {
+  CONTROLS_READ: "controls:read",
+  CONTROLS_WRITE: "controls:write",
+
+  EVIDENCE_READ: "evidence:read",
+  EVIDENCE_WRITE: "evidence:write",
+  EVIDENCE_REVIEW: "evidence:review",
+
+  FRAMEWORKS_READ: "frameworks:read",
+  FRAMEWORKS_WRITE: "frameworks:write",
+
+  USERS_READ: "users:read",
+  USERS_WRITE: "users:write",
+  USERS_DELETE: "users:delete",
+
+  RISKS_READ: "risks:read",
+  RISKS_WRITE: "risks:write",
+  RISKS_CLOSE: "risks:close",
+
+  AUDITS_READ: "audits:read",
+  AUDITS_WRITE: "audits:write",
+  AUDITS_EXPORT: "audits:export",
+
+  DPDP_READ: "dpdp:read",
+  DPDP_WRITE: "dpdp:write",
+
+  AUDITLOG_READ: "auditlog:read",
+
+  OPERATOR_ADMIN: "operator:admin",
+  OPERATOR_BREAK_GLASS: "operator:break-glass",
+
+  AI_DRAFT: "ai:draft",
+  AI_APPROVE: "ai:approve",
+} as const;
+
+export type Scope = (typeof SCOPES)[keyof typeof SCOPES];
+
 export const ROLE_SCOPES: Record<string, string[]> = {
   PLATFORM_OPERATOR: [
     "operator:admin",
@@ -69,24 +103,122 @@ export const ROLE_SCOPES: Record<string, string[]> = {
     "frameworks:read",
     "risks:close",
   ],
-  DPO: ["dpdp:read", "dpdp:write", "controls:read", "ai:draft"],
-  ENGINEERING_LEAD: ["controls:read", "evidence:write"],
-  USER: ["controls:read", "evidence:write"],
+  DPO: [
+    "dpdp:read",
+    "dpdp:write",
+    "controls:read",
+    "ai:draft",
+  ],
+  ENGINEERING_LEAD: [
+    "controls:read",
+    "evidence:write",
+  ],
+  USER: [
+    "controls:read",
+    "evidence:write",
+  ],
 };
 
-export function can(userRoles: string[], required: string[]): boolean {
+const BREAK_GLASS_READ_SCOPES = [
+  "controls:read",
+  "evidence:read",
+  "risks:read",
+  "audits:read",
+  "auditlog:read",
+  "dpdp:read",
+  "frameworks:read",
+];
+
+function getActiveBreakGlassScopes(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw =
+      sessionStorage.getItem("cygrc_break_glass_session") ||
+      localStorage.getItem("cygrc_break_glass_session");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!parsed.sessionId || !parsed.tenantId) return [];
+    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() < Date.now()) {
+      return [];
+    }
+    return BREAK_GLASS_READ_SCOPES;
+  } catch {
+    return [];
+  }
+}
+
+export function hasScope(
+  userScopes: string[] | undefined,
+  requiredScope: Scope | string
+): boolean {
+  return userScopes?.includes(requiredScope) ?? false;
+}
+
+export function hasAnyScope(
+  userScopes: string[] | undefined,
+  requiredScopes: (Scope | string)[]
+): boolean {
+  return requiredScopes.some((scope) => hasScope(userScopes, scope));
+}
+
+export function hasAllScopes(
+  userScopes: string[] | undefined,
+  requiredScopes: (Scope | string)[]
+): boolean {
+  return requiredScopes.every((scope) => hasScope(userScopes, scope));
+}
+
+export function can(userRolesOrScopes: string[] = [], required: string[]): boolean {
   if (!required || required.length === 0) return true;
-  const scopes = new Set(
-    userRoles.flatMap((r) => ROLE_SCOPES[r.toUpperCase()] ?? [])
+
+  const scopes = new Set<string>();
+
+  // 1. Process roles and scopes
+  for (const item of userRolesOrScopes) {
+    if (item.includes(":")) {
+      scopes.add(item);
+    }
+    const mapped = ROLE_SCOPES[item.toUpperCase()];
+    if (mapped) {
+      mapped.forEach((s) => scopes.add(s));
+    }
+  }
+
+  // 2. If Platform Operator has an active Break-Glass session, unlock customer read scopes!
+  const isOperator = userRolesOrScopes.some(
+    (r) => r.toUpperCase() === "PLATFORM_OPERATOR" || r === "operator:break-glass"
   );
+  if (isOperator) {
+    const bgScopes = getActiveBreakGlassScopes();
+    bgScopes.forEach((s) => scopes.add(s));
+  }
+
   return required.every((s) => scopes.has(s));
 }
 
-export function canAny(userRoles: string[], scopesToCheck: string[]): boolean {
+export function canAny(userRolesOrScopes: string[] = [], scopesToCheck: string[]): boolean {
   if (!scopesToCheck || scopesToCheck.length === 0) return true;
-  const scopes = new Set(
-    userRoles.flatMap((r) => ROLE_SCOPES[r.toUpperCase()] ?? [])
+
+  const scopes = new Set<string>();
+
+  for (const item of userRolesOrScopes) {
+    if (item.includes(":")) {
+      scopes.add(item);
+    }
+    const mapped = ROLE_SCOPES[item.toUpperCase()];
+    if (mapped) {
+      mapped.forEach((s) => scopes.add(s));
+    }
+  }
+
+  const isOperator = userRolesOrScopes.some(
+    (r) => r.toUpperCase() === "PLATFORM_OPERATOR" || r === "operator:break-glass"
   );
+  if (isOperator) {
+    const bgScopes = getActiveBreakGlassScopes();
+    bgScopes.forEach((s) => scopes.add(s));
+  }
+
   return scopesToCheck.some((s) => scopes.has(s));
 }
 

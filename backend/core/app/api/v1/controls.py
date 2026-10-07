@@ -27,7 +27,7 @@ http_bearer = HTTPBearer()
     response_model=list[AssigneeItem],
     dependencies=[
         Depends(http_bearer),
-        Depends(require_scope("controls:write")),
+        Depends(require_scope("controls:read")),
     ],
 )
 async def list_control_assignees(

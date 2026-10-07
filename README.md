@@ -1,174 +1,115 @@
-# CyGRC-M1 
-Documentation for setting up, developing, and contributing to the CyGRC platform.
+# CyGRC Platform — Module 1
 
-## REPOSITORY LAYOUT
+An enterprise Governance, Risk, and Compliance (GRC) platform automating continuous control monitoring, cryptographic evidence collection, 72-hour DPDP breach tracking, and human-in-the-loop AI drafting.
+
+## Architecture & Service Map
+
+The local environment is orchestrated as a multi-container Docker Compose mesh:
+
+| Service | Port | Description | Credentials / Default Access |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | `3000` | Next.js 15 (App Router), React 19, Tailwind CSS | Web UI |
+| **Backend Core** | `8000` | FastAPI (Async), Uvicorn, SQLAlchemy, Alembic | OpenAPI Docs at `/docs` |
+| **Keycloak IAM** | `8080` | OIDC / OAuth2 Identity Provider (Pre-seeded Realm) | `admin` / `admin_password_123` |
+| **PostgreSQL 16** | `5432` | Primary Database with forced Row-Level Security (RLS) | `grc_user` / `grc_local_password_123` |
+| **MinIO S3** | `9000` / `9001` | S3-Compatible Evidence Object Storage & Console | `minio_local_admin` / `minio_local_password_123` |
+| **Valkey 8** | `6379` | In-memory cache for JWKS keys and IP rate limiting | Internal Redis protocol |
+| **External SLM** | Colab Tunnel | Qwen2.5-7B (4-bit NF4 quantized on Tesla T4 GPU) | Injected via `SLM_ENDPOINT_URL` |
+
+---
+
+## Repository Layout
 
 ```text
 CyGRC-M1/
-├── .github/
-│   └── workflows/
-│       └── ci.yml             # CI Pipeline (Lints, Secrets, & CVE Scans)
-├── .gitignore                 
-├── .pre-commit-config.yaml    # Pre-commit formatting & security checks (Ruff & Gitleaks)
-├── docker-compose.yml         # Shared local service stack (PostgreSQL, Valkey, Keycloak, MinIO) (Check below for credentials)
-├── README.md   
-├── requirements.txt   
-├── backend/                   
-│   ├── core/                  
-│   │   ├── app/
-│   └── notification/          # webhooks           
-├── frontend/                       
-│   └── src/
-└── scripts/
-    └── seed_dev_db.py         # only checks PostgreSQL connectivity for now
+├── docker-compose.yml              # Local multi-service mesh 
+├── init-db.sh / realm-export.json  # DB bootstrap (non-superuser role) & Keycloak realm export
+├── ai/slm_server.ipynb             # Qwen2.5-7B 4-bit SLM inference tunnel (Tesla T4 GPU)
+├── .github/workflows/ci.yml        # CI pipeline (Ruff linter, Gitleaks, Trivy vulnerability scan)
+│
+├── backend/core/                   # FastAPI Backend (Python 3.11 / Async)
+│   ├── alembic/versions/           # Migrations 0001–0010 
+│   ├── app/
+│   │   ├── main.py                 # Core API gateway mounting 11 domain routers
+│   │   ├── api/v1/                 # 11 Scoped REST routers (controls, evidence, risks, audits, dpdp, ai, etc.)
+│   │   ├── middleware/             # KeycloakAuthMiddleware and AuditLogMiddleware 
+│   │   ├── services/               # Integrations: S3 MinIO, Keycloak IAM, Compliance Engine, SLM Client
+│   │   ├── schemas/ & db/          # Pydantic v2 validation contracts & SQLAlchemy RLS models
+│   │   ├── seeds/                  # Master framework data (only ISO 27001 controls & requirements)
+│   │   └── utils/crypto.py         # Streaming SHA-256 evidence hasher
+│   └── tests/                      # Automated Pytest suite 
+│
+├── frontend/                       # Client Application (Next.js 15 App Router / React 19)
+│   ├── app/
+│   │   ├── (app)/                  # Authenticated views (dashboard, controls, frameworks, risks, audits, dpdp, etc...)
+│   │   ├── api/auth/refresh/       # Next.js backchannel token rotation endpoint
+│   │   └── auth/, login/, onboard/ # OIDC authentication and workspace registration flows
+│   ├── components/                 # UI widgets (AppSidebar, AppTopBar, BreakGlassBanner, StatusBadge etc...)
+│   └── lib/                        # Client infrastructure: Token interceptor, RBAC (can/canAny), design tokens
+│
+└── docs/                           # Documentation: Final Report v1.0, PRD v3.0, and Sprint Issues 
 ```
 
-## SETUP INSTRUCTIONS
+## Quickstart & Setup
 
+### Prerequisites
+* **Docker Desktop** (v27+ recommended, with WSL 2 enabled on Windows)
+* **Git**
 
-### Step 1: Pre-requisites & OS Environment
-Download and install these **5 tools**:
-
-| Tool | Recommended Version | Download / Install Command |
-| :--- | :--- | :--- |
-| **Docker Desktop** | `v27.x` or later | [docker.com](https://www.docker.com/products/docker-desktop/) \| `winget install Docker.DockerDesktop` / `brew install --cask docker` |
-| **Node.js** | `v20 LTS` | [nodejs.org](https://nodejs.org/) \| `nvm install 20` |
-| **Python** | `v3.12.x` | [python.org](https://www.python.org/) \| `winget install Python.Python.3.12` / `brew install python@3.12` |
-| **Git** | Latest | [git-scm.com](https://git-scm.com/) \| Included with Xcode Tools (macOS) / Git Bash (Windows) |
-| **VS Code** | Latest | [code.visualstudio.com](https://code.visualstudio.com/) *(Recommended editor)* |
-
-#### Windows Users Only (WSL 2 Setup)
-Since our databases run inside Linux container images, Windows users must configure **WSL 2 (Windows Subsystem for Linux)**:
-1. Open PowerShell as Administrator and run:
-   ```powershell
-   wsl --install
-   ```
-2. Reboot your laptop.
-3. Open **Docker Desktop**, go to **Settings > General**, and verify **"Use the WSL 2 based engine"** is checked.
-
-*(Mac users can skip the WSL step entirely)*
-
-### Step 2: Clone and Start Databases
-Keep Docker Desktop running in the background (the bottom-left corner should display `Engine running`)
-
-Open your terminal and run:
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/aadhur/CyGRC-M1.git
-
 cd CyGRC-M1
-
-docker-compose up -d
 ```
 
+### Step 2: Configure Environment (Optional SLM)
+If utilizing the local AI drafting assistant:
+1. Open and run `ai/slm_server.ipynb` on a Google Colab T4 GPU runtime.
+2. Copy the resulting public HTTPS ngrok tunnel URL.
+3. Export the endpoint URL in your terminal:
+   ```powershell
+   # Windows PowerShell
+   $env:SLM_ENDPOINT_URL="https://xxxxxxxx.ngrok-free.app"
+   ```
 
-> ### *Note*
->
-> If `docker compose up -d` takes a long time because Docker is downloading images, you can pull them manually first.
->
-> Example:
->
-> ```bash
-> docker pull postgres:16-alpine
-> ```
->
-> Repeat for the remaining images defined in `docker-compose.yml`, then run:
->
-> ```bash
-> docker compose up -d
-> ```
-
-You can verify the services are active by visiting:
-* **Keycloak Portal:** [http://localhost:8080](http://localhost:8080) *(Credentials: admin/admin_password_123)*
-* **MinIO Console:** [http://localhost:9001](http://localhost:9001) *(Credentials: minio_local_admin/minio_local_password_123)*
-
-### Step 3: Setup Virtual Environment & Run Diagnostics
+### Step 3: Launch Full-Stack Mesh
 ```bash
-# Move into backend core
-cd backend/core
-
-# Create Python virtual environment
-python -m venv venv
-
-# Activate venv (Mac/Linux)
-source venv/bin/activate
-# Activate venv (Windows Command Prompt)
-venv\Scripts\activate
-# Activate venv (Windows PowerShell)
-venv\Scripts\Activate.ps1
-
-# Install dependencies & Git pre-commit hooks
-pip install -r ../../requirements.txt # for the seeder script
-# These hooks will run automatically before every commit.
-pip install pre-commit
-pre-commit install
-
-# Check DB connection 
-python ../../scripts/seed_dev_db.py
+docker compose up -d --build
 ```
-If you see **`PostgreSQL Connection: OK`**, then the seeder works. 
 
-## ADDITIONAL INFORMATION
-- Documentation in Code: Source files contain comments explaining module execution and architecture choices.
-- Branch Protection Rules (Only on `main`)
-  - Require a Pull Request before merging (direct pushes to main are blocked).
-  - Require the `code-quality` and `security-scan` status checks to pass before merging. --> CI Pipeline runs
-  - Require approval before merging (set to 1 approval for now).
+Docker Compose will automatically:
+1. Boot PostgreSQL and run `init-db.sh` to configure the non-superuser application role (`NOSUPERUSER NOBYPASSRLS`).
+2. Initialize Valkey and Keycloak (importing the pre-configured `cyart-platform` realm).
+3. Initialize MinIO and provision the `cygrc-evidence` storage bucket.
+4. Run all Alembic database migrations (`alembic upgrade head`) and start FastAPI.
+5. Compile and launch the Next.js frontend on `http://localhost:3000`.
 
-## CONTRIBUTING GUIDE
+---
 
-### 1. Create a Feature Branch
+## Accessing the Platform
 
-Never work directly on the `main` branch.
+* **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
+  * **To Register a New Workspace**: Navigate to `/onboard` and fill out your organization details.
+  * **Pre-seeded Platform Operators**: These can be directly logged in without registration.
+    * Operator 1: `operator1@cyart.com` / `OperatorSecurePassword2026!`
+    * Operator 2: `operator2@cyart.com` / `OperatorSecurePassword2026!`
+* **FastAPI Interactive Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Keycloak Admin Console**: [http://localhost:8080](http://localhost:8080) (`admin` / `admin_password_123`)
+* **MinIO Storage Console**: [http://localhost:9001](http://localhost:9001) (`minio_local_admin` / `minio_local_password_123`)
+
+---
+
+## Verification & Automated Test Suite
+
+To execute the backend verification test harness (including PostgreSQL RLS bypass checks, 35-endpoint RBAC scope matrix, and audit log immutability tests):
 
 ```bash
-# For new features
-git checkout -b feature/your-feature-name
-
-# For bug fixes
-git checkout -b fix/your-fix-name
+docker compose exec backend pytest
 ```
 
-Example:
+## Documentation
 
-```bash
-git checkout -b feature/login-page
-```
-
-### 2. Make Your Changes
-
-Edit the required files and save your changes.
-
-### 3. Stage and Commit
-
-```bash
-git add .
-git commit -m "Add login feature"
-```
-
-Note: Pre-commit hooks (Ruff & Gitleaks) run automatically on git commit. If hooks modify files (e.g., auto-formatting), re-stage and commit again.
-
-### 4. Push Your Branch
-
-```bash
-git push -u origin feature/your-feature-name
-```
-
-### 5. Create a Pull Request
-
-Open a Pull Request from your feature branch into the `main` branch.
-
-The CI pipeline will automatically run the following checks:
-
-- Code Quality (Ruff)
-- Secret Scanning (Gitleaks)
-- Container and Vulnerability Scanning (Trivy)
-
-If any check fails, fix the reported issues and push your changes again. The Pull Request will automatically be updated and the CI pipeline will rerun.
-
-Once:
-- All CI checks pass.
-- Required reviews are approved.
-  
-The Pull Request can then be merged into the `main` branch.
-
-  
+Full architectural specifications, database models, and sprint tickets are archived under `docs/`:
+* `docs/report/`: Main Engineering Implementation Report v1.0
+* `docs/planning/`: Product Requirements Document (PRD v3.0) and Initial Proposal
+* `docs/issues/`: Backend and Frontend issue specifications

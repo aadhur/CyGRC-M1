@@ -54,7 +54,7 @@ export default function OnboardPage() {
           href="/login"
           className="text-xs text-slate-400 hover:text-slate-200 transition-colors mb-4 inline-block"
         >
-          ← Back to sign in
+          Back to sign in
         </Link>
 
         <div className="w-12 h-12 rounded-xl bg-brand-orange/15 border border-brand-orange/40 flex items-center justify-center text-brand-orange mb-4">
@@ -67,8 +67,6 @@ export default function OnboardPage() {
         <h1 className="text-2xl font-heading font-bold text-slate-100 mt-1">
           Set up your workspace.
         </h1>
-        <p className="text-sm text-slate-400 mt-2 mb-6">
-        </p>
 
         {error && (
           <div className="p-3 mb-5 rounded-xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
@@ -121,7 +119,7 @@ export default function OnboardPage() {
               onChange={(e) => setForm({ ...form, plan: e.target.value })}
               className="w-full px-3.5 py-2.5 bg-surface-raised border border-border rounded-xl text-sm text-slate-200 focus:outline-none focus:border-brand-orange"
             >
-              <option value="Growth">Standard</option>
+              <option value="Standard">Standard</option>
               <option value="Enterprise">Enterprise</option>
             </select>
           </div>

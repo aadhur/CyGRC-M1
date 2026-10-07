@@ -1,6 +1,38 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-background: #080c14;
+  --color-surface: #0f1623;
+  --color-surface-raised: #162032;
+  --color-border: #1c283e;
+  --color-border-subtle: #151e2e;
+  --color-brand-orange: #f97316;
+  --color-brand-orange-hover: #ea580c;
+  --color-brand-green: #22c55e;
+
+  --color-zinc-950: #080c14;
+  --color-zinc-900: #0f1623;
+  --color-zinc-800: #1c283e;
+  --color-zinc-700: #2b3952;
+  --color-zinc-500: #64748b;
+  --color-zinc-400: #94a3b8;
+  --color-zinc-300: #cbd5e1;
+  --color-zinc-200: #e2e8f0;
+  --color-zinc-100: #f8fafc;
+
+  --color-card: #0f1623;
+  --color-card-foreground: #f1f5f9;
+  --color-muted: #162032;
+  --color-muted-foreground: #94a3b8;
+  --color-input: #1c283e;
+  --color-ring: #f97316;
+  --color-primary: #f97316;
+  --color-primary-foreground: #080c14;
+
+  --font-heading: "Kiona", system-ui, -apple-system, sans-serif;
+  --font-body: "KiyeSans", system-ui, -apple-system, sans-serif;
+  --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
 
 :root {
   color-scheme: dark;
@@ -9,7 +41,7 @@
 body {
   background-color: #080c14;
   color: #f1f5f9;
-  font-family: var(--font-body, system-ui, -apple-system, sans-serif);
+  font-family: var(--font-body, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -19,5 +51,5 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 code, pre, .font-mono {
-  font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono, monospace);
 }

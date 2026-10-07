@@ -175,6 +175,58 @@ async def get_risk(
         )
 
 
+@router.get(
+    "/{risk_id}",
+    response_model=GetRiskResponse,
+    dependencies=[
+        Depends(http_bearer),
+        Depends(require_scope("risks:read")),
+    ],
+)
+async def get_risk_by_id(
+    risk_id: UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+):
+    try:
+        stmt = select(Risk).where(Risk.risk_id == risk_id)
+        result = await db.execute(stmt)
+        risk = result.scalar_one_or_none()
+
+        if risk is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Risk not found.",
+            )
+
+        risk_controls_result = await db.execute(
+            select(RiskControl.control_id).where(RiskControl.risk_id == risk_id)
+        )
+        control_ids = [row[0] for row in risk_controls_result.all()]
+
+        return {
+            "risk_id": risk.risk_id,
+            "title": risk.title,
+            "description": risk.description,
+            "likelihood": risk.likelihood,
+            "impact": risk.impact,
+            "inherent_score": risk.inherent_risk_score,
+            "residual_score": risk.residual_risk_score,
+            "treatment": risk.treatment,
+            "treatment_plan": risk.treatment_plan,
+            "target_close_date": risk.target_close_date,
+            "status": risk.status,
+            "control_ids": control_ids,
+        }
+    except HTTPException:
+        raise
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not retrieve risk.",
+        )
+
+
 @router.patch(
     "/{risk_id}",
     response_model=RiskPatchResponse,
@@ -203,14 +255,20 @@ async def patch_risk(
     # Only update fields explicitly provided in the request
     update_data = payload.model_dump(exclude_unset=True)
 
-    if "status" in update_data and update_data["status"] in (
-        RiskStatusEnum.CLOSED.value,
-        RiskStatusEnum.ACCEPTED.value,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Risks can't be closed or accepted here.",
+    if "status" in update_data:
+        status_val = (
+            update_data["status"].value
+            if hasattr(update_data["status"], "value")
+            else str(update_data["status"])
         )
+        if status_val in (
+            RiskStatusEnum.CLOSED.value,
+            RiskStatusEnum.ACCEPTED.value,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Risks can't be closed or accepted here.",
+            )
 
     for field, value in update_data.items():
         setattr(risk, field, value)

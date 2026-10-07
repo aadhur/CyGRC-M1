@@ -19,7 +19,7 @@ export const AUTH_CONFIG = {
   get loginUrl() {
     return `${this.keycloakBaseUrl}/realms/${this.realm}/protocol/openid-connect/auth?client_id=${this.clientId}&redirect_uri=${encodeURIComponent(
       this.callbackUrl
-    )}&response_type=code&scope=openid&prompt=login`;
+    )}&response_type=code&scope=openid`;
   },
   // Used by server route handlers (callback, refresh, logout)
   get tokenEndpoint() {

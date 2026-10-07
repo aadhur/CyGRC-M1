@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/context";
 import { apiFetch } from "@/lib/api/client";
 import { Plus, Trash2, X, CircleAlert, Loader2 } from "lucide-react";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 interface TeamMember {
   user_id: string;
@@ -55,13 +56,20 @@ export default function TeamPage() {
     }
   };
 
-  const handleRemove = async (userId: string) => {
-    if (!confirm("Are you sure you want to remove this user from the workspace?")) return;
+const [userToDelete, setUserToDelete] = useState<TeamMember | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+    setDeleting(true);
     try {
-      await apiFetch(`/v1/users/${userId}`, { method: "DELETE" });
-      setMembers((prev) => prev.filter((m) => m.user_id !== userId));
+      await apiFetch(`/v1/users/${userToDelete.user_id}`, { method: "DELETE" });
+      setMembers((prev) => prev.filter((m) => m.user_id !== userToDelete.user_id));
+      setUserToDelete(null);
     } catch (err: any) {
       alert(err.message || "Failed to remove user.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -141,7 +149,7 @@ export default function TeamPage() {
                     <td className="px-6 py-4 text-right">
                       {can(["users:delete"]) && !isCurrent && member.role !== "TENANT_ADMIN" && (
                         <button
-                          onClick={() => handleRemove(member.user_id)}
+                          onClick={() => setUserToDelete(member)}
                           className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors"
                           title="Remove user"
                         >
@@ -233,6 +241,19 @@ export default function TeamPage() {
           </div>
         </div>
       )}
+
+      {/* Destructive ConfirmModal for Member Deletion */}
+      <ConfirmModal
+        isOpen={userToDelete !== null}
+        onClose={() => setUserToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Remove Team Member"
+        description={`Are you sure you want to remove ${userToDelete?.email}? Their access to this workspace will be immediately revoked.`}
+        confirmText="Remove Member"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleting}
+      />
     </div>
   );
 }

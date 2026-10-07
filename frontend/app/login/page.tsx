@@ -1,11 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/context";
 import { AUTH_CONFIG } from "@/lib/auth/config";
-import { ShieldCheck, ArrowRight, FolderLock, Plus } from "lucide-react";
+import { ArrowRight, FolderLock, Plus } from "lucide-react";
 
 export default function LoginPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
   const handleSignIn = () => {
     window.location.href = AUTH_CONFIG.loginUrl;
   };
@@ -21,7 +32,7 @@ export default function LoginPage() {
         <div className="space-y-3">
           <button
             onClick={handleSignIn}
-            className="w-full py-3 px-4 bg-brand-orange hover:bg-brand-orange-hover text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all"
+            className="w-full py-3 px-4 bg-brand-orange hover:bg-brand-orange-hover text-white font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
           >
             <span>Sign in with Keycloak</span>
             <ArrowRight size={17} />

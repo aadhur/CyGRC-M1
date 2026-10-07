@@ -21,7 +21,7 @@ async function handleRefresh(request: NextRequest) {
 
     const tokenRes = await fetch(AUTH_CONFIG.tokenEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "Host":"localhost:8080", },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
       cache: "no-store",
     });

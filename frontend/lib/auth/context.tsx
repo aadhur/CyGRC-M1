@@ -1,134 +1,314 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { parseJwt, can as canCheck, canAny as canAnyCheck } from "./permissions";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
-interface AuthUser {
-  userId: string;
-  email: string;
-  tenantId: string;
-  roles: string[];
-}
+import { hasAllScopes, hasAnyScope, Scope } from "./permissions";
 
-interface AuthContextType {
+type AuthUser = {
+  userId?: string;
+  sub?: string;
+  email?: string;
+  name?: string;
+  preferred_username?: string;
+  tenant_id?: string;
+  tenantId?: string;
+  roles?: string[];
+  scopes?: string[];
+};
+
+type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
+  isAuthenticated: boolean;
   isLoading: boolean;
-  can: (requiredScopes: string[]) => boolean;
-  canAny: (scopes: string[]) => boolean;
-  logout: () => void;
+  scopes: string[];
+  roles: string[];
+  tenantId: string | null;
+  can: (requiredScopes: (Scope | string)[]) => boolean;
+  canAny: (scopes: (Scope | string)[]) => boolean;
   setSessionToken: (accessToken: string, refreshToken?: string | null) => void;
-}
+  logout: () => void;
+};
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function readAccessTokenCookie(): string | null {
+const BREAK_GLASS_SCOPES = [
+  "controls:read",
+  "evidence:read",
+  "risks:read",
+  "audits:read",
+  "auditlog:read",
+  "dpdp:read",
+  "frameworks:read",
+];
+
+const ROLE_SCOPES: Record<string, string[]> = {
+  PLATFORM_OPERATOR: [
+    "operator:admin",
+    "operator:break-glass",
+    "frameworks:read",
+    "frameworks:write",
+  ],
+  TENANT_ADMIN: [
+    "controls:read",
+    "controls:write",
+    "evidence:read",
+    "evidence:write",
+    "evidence:review",
+    "frameworks:read",
+    "auditlog:read",
+    "audits:read",
+    "audits:write",
+    "audits:export",
+    "risks:read",
+    "risks:write",
+    "risks:close",
+    "dpdp:read",
+    "dpdp:write",
+    "users:read",
+    "users:write",
+    "users:delete",
+    "ai:draft",
+    "ai:approve",
+  ],
+  COMPLIANCE_MANAGER: [
+    "controls:read",
+    "controls:write",
+    "evidence:read",
+    "evidence:review",
+    "frameworks:read",
+    "risks:read",
+    "risks:close",
+    "ai:draft",
+    "ai:approve",
+  ],
+  INTERNAL_AUDITOR: [
+    "controls:read",
+    "evidence:read",
+    "audits:read",
+    "audits:write",
+    "audits:export",
+    "frameworks:read",
+  ],
+  RISK_OWNER: [
+    "controls:read",
+    "risks:read",
+    "risks:write",
+    "evidence:read",
+    "risks:close",
+    "frameworks:read",
+  ],
+  CISO: [
+    "evidence:review",
+    "evidence:read",
+    "controls:read",
+    "risks:read",
+    "audits:read",
+    "dpdp:read",
+    "auditlog:read",
+    "users:read",
+    "frameworks:read",
+    "risks:close",
+  ],
+  DPO: [
+    "dpdp:read",
+    "dpdp:write",
+    "controls:read",
+    "ai:draft",
+  ],
+  ENGINEERING_LEAD: [
+    "controls:read",
+    "evidence:write",
+  ],
+  USER: [
+    "controls:read",
+    "evidence:write",
+  ],
+};
+
+function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(^| )cygrc_access_token=([^;]+)/);
+  const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
   return match ? decodeURIComponent(match[2]) : null;
 }
 
-function purgeLegacyCookies() {
-  if (typeof document === "undefined") return;
-  // Delete old un-prefixed cookies that cause duplicates in DevTools
-  const legacy = ["access_token", "refresh_token", "id_token"];
-  for (const name of legacy) {
-    document.cookie = `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+function decodeAccessToken(): string | null {
+  return getCookie("cygrc_access_token") ?? getCookie("access_token");
+}
+
+function getActiveBreakGlass(): { sessionId: string; tenantId: string; expiresAt: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw =
+      sessionStorage.getItem("cygrc_break_glass_session") ||
+      localStorage.getItem("cygrc_break_glass_session");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.sessionId || !parsed.tenantId) return null;
+    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() < Date.now()) {
+      sessionStorage.removeItem("cygrc_break_glass_session");
+      localStorage.removeItem("cygrc_break_glass_session");
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+function decodeToken(token: string): AuthUser | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const decoded = JSON.parse(atob(padded));
+
+    const roles: string[] = decoded.roles ?? decoded.realm_access?.roles ?? [];
+    const tokenScopes: string[] =
+      decoded.scopes ?? (typeof decoded.scope === "string" ? decoded.scope.split(" ") : []);
+
+    const roleScopes = roles.flatMap((role) => ROLE_SCOPES[String(role).toUpperCase()] ?? []);
+    const scopes = Array.from(new Set([...tokenScopes, ...roleScopes]));
+
+    return {
+      userId: decoded.sub,
+      sub: decoded.sub,
+      email: decoded.email,
+      name: decoded.name,
+      preferred_username: decoded.preferred_username,
+      tenant_id: decoded.tenant_id,
+      tenantId: decoded.tenant_id,
+      roles,
+      scopes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [bgSession, setBgSession] = useState<{ sessionId: string; tenantId: string; expiresAt: string } | null>(null);
 
-  const applyToken = (rawToken: string | null) => {
-    if (!rawToken) {
-      setUser(null);
-      setToken(null);
-      return;
-    }
-    const payload = parseJwt(rawToken);
-    if (!payload) {
-      setUser(null);
-      setToken(null);
-      return;
-    }
-
-    const roles: string[] = payload.realm_access?.roles || [];
-    const businessRoles = roles.filter(
-      (r) => !["offline_access", "uma_authorization"].includes(r) && !r.startsWith("default-roles")
-    );
-
-    setUser({
-      userId: payload.sub || "",
-      email: payload.email || payload.preferred_username || "Operator",
-      tenantId: payload.tenant_id || "",
-      roles: businessRoles.length > 0 ? businessRoles : ["USER"],
-    });
-    setToken(rawToken);
-  };
-
-  useEffect(() => {
-    purgeLegacyCookies();
-    const existing = readAccessTokenCookie();
-    if (existing) {
-      applyToken(existing);
-    }
-    setIsLoading(false);
+  const checkBreakGlass = useCallback(() => {
+    setBgSession(getActiveBreakGlass());
   }, []);
 
-  const setSessionToken = (accessToken: string, refreshToken?: string | null) => {
-    // 1. Access token (readable by JavaScript for UI checks)
-    document.cookie = `cygrc_access_token=${encodeURIComponent(
-      accessToken
-    )}; Path=/; Max-Age=900; SameSite=Lax`;
+  useEffect(() => {
+    const existing = decodeAccessToken();
+    if (existing) {
+      setToken(existing);
+      setUser(decodeToken(existing));
+    }
+    checkBreakGlass();
+    setIsLoading(false);
 
-    // 2. Refresh token (persists 30 days so tenant stays logged in)
-    if (refreshToken) {
-      document.cookie = `cygrc_refresh_token=${encodeURIComponent(
-        refreshToken
-      )}; Path=/; Max-Age=2592000; SameSite=Lax`;
+    window.addEventListener("storage", checkBreakGlass);
+    window.addEventListener("cygrc:break-glass-change", checkBreakGlass);
+    return () => {
+      window.removeEventListener("storage", checkBreakGlass);
+      window.removeEventListener("cygrc:break-glass-change", checkBreakGlass);
+    };
+  }, [checkBreakGlass]);
+
+  const setSessionToken = useCallback((accessToken: string, refreshToken?: string | null) => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("cygrc_break_glass_session");
+      localStorage.removeItem("cygrc_break_glass_session");
     }
 
-    applyToken(accessToken);
-  };
+    setToken(accessToken);
+    setUser(decodeToken(accessToken));
+    setIsLoading(false);
 
-  const logout = () => {
-    window.location.href = "/auth/logout";
-  };
+    if (typeof document !== "undefined") {
+      const encodedAccessToken = encodeURIComponent(accessToken);
+      document.cookie = `cygrc_access_token=${encodedAccessToken}; Path=/; Max-Age=900; SameSite=Lax`;
+      document.cookie = `access_token=${encodedAccessToken}; Path=/; Max-Age=900; SameSite=Lax`;
 
-  const checkScope = (requiredScopes: string[]): boolean => {
-    if (!user) return false;
-    return canCheck(user.roles, requiredScopes);
-  };
+      if (refreshToken) {
+        const encodedRefreshToken = encodeURIComponent(refreshToken);
+        document.cookie = `cygrc_refresh_token=${encodedRefreshToken}; Path=/; Max-Age=2592000; SameSite=Lax`;
+        document.cookie = `refresh_token=${encodedRefreshToken}; Path=/; Max-Age=2592000; SameSite=Lax`;
+      }
+    }
+  }, []);
 
-  const checkAnyScope = (scopes: string[]): boolean => {
-    if (!user) return false;
-    return canAnyCheck(user.roles, scopes);
-  };
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        can: checkScope,
-        canAny: checkAnyScope,
-        logout,
-        setSessionToken,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+    if (typeof document !== "undefined") {
+      document.cookie = "cygrc_access_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "access_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "cygrc_refresh_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "refresh_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "cygrc_id_token=; Path=/; Max-Age=0; SameSite=Lax";
+    }
+
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("cygrc_break_glass_session");
+      localStorage.removeItem("cygrc_break_glass_session");
+      window.location.href = "/auth/logout";
+    }
+  }, []);
+
+  const value = useMemo<AuthContextValue>(() => {
+    let scopes = user?.scopes ?? [];
+    const roles = user?.roles ?? [];
+    let tenantId = user?.tenant_id ?? user?.tenantId ?? null;
+
+    // Platform Operator only gets customer tenant read scopes IF break-glass is actively active
+    const isOperator =
+      roles.some((r) => r.toUpperCase() === "PLATFORM_OPERATOR") ||
+      scopes.includes("operator:break-glass");
+
+    if (bgSession && isOperator) {
+      tenantId = bgSession.tenantId;
+      scopes = Array.from(new Set([...scopes, ...BREAK_GLASS_SCOPES]));
+    }
+
+    return {
+      user: user
+        ? {
+            ...user,
+            tenant_id: tenantId ?? undefined,
+            tenantId: tenantId ?? undefined,
+            scopes,
+          }
+        : null,
+      token,
+      isAuthenticated: Boolean(user && token),
+      isLoading,
+      scopes,
+      roles,
+      tenantId,
+      can: (requiredScopes) => hasAllScopes(scopes, requiredScopes as Scope[]),
+      canAny: (requiredScopes) => hasAnyScope(scopes, requiredScopes as Scope[]),
+      setSessionToken,
+      logout,
+    };
+  }, [user, token, isLoading, bgSession, setSessionToken, logout]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth(): AuthContextType {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within an AuthProvider");
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used inside AuthProvider");
   }
-  return ctx;
+  return context;
 }

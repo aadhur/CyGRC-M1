@@ -1,26 +1,95 @@
-import React from "react";
-import { CONTROL_STATUS_MAP, EVIDENCE_STATUS_MAP } from "@/lib/design/status";
+import {
+  AUDIT_STATUS_STYLES,
+  AUDIT_VERDICTS,
+  CONTROL_STATUS_MAP,
+  EVIDENCE_STATUS_MAP,
+  RISK_STATUS_STYLES,
+  type StatusConfig,
+} from "@/lib/design/status";
+
+type StatusBadgeType = "control" | "evidence" | "audit" | "risk";
+
+interface StatusBadgeProps {
+  status: string;
+  type?: StatusBadgeType;
+}
+
+function formatStatusLabel(status: string) {
+  return status
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export function StatusBadge({
   status,
   type = "control",
-}: {
-  status: string;
-  type?: "control" | "evidence";
-}) {
-  const map = type === "control" ? CONTROL_STATUS_MAP : EVIDENCE_STATUS_MAP;
-  const config = map[status.toUpperCase()] || {
-    label: status,
-    badgeClass: "bg-slate-800 text-slate-400 border border-slate-700",
+}: StatusBadgeProps) {
+  const normalized = status.toUpperCase();
+
+  let config: StatusConfig | undefined;
+
+  if (type === "control") {
+    config = CONTROL_STATUS_MAP[normalized];
+  } else if (type === "evidence") {
+    config = EVIDENCE_STATUS_MAP[normalized];
+  } else if (type === "audit") {
+    const lifecycleClass = AUDIT_STATUS_STYLES[normalized];
+    const verdictClass = AUDIT_VERDICTS[normalized];
+
+    if (lifecycleClass || verdictClass) {
+      const badgeClass = lifecycleClass ?? verdictClass ?? "";
+
+      config = {
+        label: formatStatusLabel(normalized),
+        badgeClass,
+        dotClass:
+          normalized === "CLOSED" || normalized === "PASS"
+            ? "bg-emerald-400"
+            : normalized === "IN_PROGRESS"
+              ? "bg-blue-400"
+              : normalized === "REMEDIATION" ||
+                  normalized === "EXCEPTION"
+                ? "bg-amber-400"
+                : normalized === "FAIL"
+                  ? "bg-rose-400"
+                  : "bg-slate-400",
+      };
+    }
+  } else if (type === "risk") {
+    const badgeClass = RISK_STATUS_STYLES[normalized];
+
+    if (badgeClass) {
+      config = {
+        label: formatStatusLabel(normalized),
+        badgeClass,
+        dotClass:
+          normalized === "CLOSED"
+            ? "bg-emerald-400"
+            : normalized === "TREATING"
+              ? "bg-amber-400"
+              : normalized === "ACCEPTED"
+                ? "bg-purple-400"
+                : "bg-blue-400",
+      };
+    }
+  }
+
+  const finalConfig = config ?? {
+    label: formatStatusLabel(status),
+    badgeClass:
+      "border border-slate-700 bg-slate-800 text-slate-400",
     dotClass: "bg-slate-400",
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium tracking-wide ${config.badgeClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-wide ${finalConfig.badgeClass}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${config.dotClass}`} />
-      {config.label}
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${finalConfig.dotClass}`}
+      />
+      {finalConfig.label}
     </span>
   );
 }

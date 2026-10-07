@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import "./globals.css";
 import { AuthProvider } from "@/lib/auth/context";
+import { QueryProvider } from "@/lib/query-provider";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CyGRC",
-  description: "Enterprise Continuous Compliance and Risk Workspace",
+  description: "Enterprise Continuous Compliance and Risk Platform",
 };
 
 export default function RootLayout({
@@ -14,10 +15,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="bg-background text-slate-100 min-h-screen"
-        suppressHydrationWarning
-      >
-        <AuthProvider>{children}</AuthProvider>
+      <body className="bg-background text-slate-100 min-h-screen">
+        <QueryProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

@@ -33,6 +33,8 @@ BREAK_GLASS_SCOPES = [
     "risks:read",
     "audits:read",
     "auditlog:read",
+    "dpdp:read",
+    "frameworks:read",
 ]
 
 ROLE_SCOPES: dict[str, list[str]] = {
@@ -331,7 +333,10 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
                 now = datetime.now(timezone.utc)
                 if (
                     bg_session is None
-                    or bg_session.requested_by != user_id
+                    or (
+                        bg_session.requested_by != user_id
+                        and bg_session.approved_by != user_id
+                    )
                     or bg_session.status != BreakGlassStatus.ACTIVE
                     or bg_session.expires_at is None
                     or bg_session.expires_at < now

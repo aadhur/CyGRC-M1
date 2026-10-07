@@ -69,5 +69,4 @@ async def create_framework(
             detail=f"Framework with code '{payload.code}' already exists.",
         )
 
-    await db.refresh(framework)
     return framework

@@ -35,9 +35,6 @@ router = APIRouter()
 bearer_scheme = HTTPBearer()
 
 
-# ==========================================
-# AUDIT CYCLE & SCOPE ENDPOINTS
-# ==========================================
 @router.get(
     "",
     response_model=list[AuditDetailResponse],
@@ -261,11 +258,6 @@ async def list_audit_findings(
     return result.scalars().all()
 
 
-# ==========================================
-# ROSHAN's ENDPOINTS (Issue #101) - ASYNC UNIFIED
-# ==========================================
-
-
 @router.post(
     "/{audit_id}/controls/{control_id}/review",
     response_model=AuditControlReviewResponse,
@@ -406,11 +398,6 @@ async def update_finding_status(
     return finding
 
 
-# ==========================================
-# VAIBHAVI's ENDPOINTS (Issue #102) - ASYNC UNIFIED
-# ==========================================
-
-
 @router.post(
     "/{audit_id}/sign-off",
     response_model=AuditSignOffResponse,
@@ -438,13 +425,14 @@ async def sign_off_audit(
             detail="Audit not found",
         )
 
+    audit.status = AuditStatusEnum.CLOSED
     audit.signed_off_by = user_id
 
     await db.commit()
 
     return AuditSignOffResponse(
         audit_id=audit.audit_id,
-        status=AuditStatusEnum.CLOSED,
+        status=audit.status,
         signed_off_by=audit.signed_off_by,
     )
 
@@ -454,7 +442,7 @@ async def sign_off_audit(
     status_code=status.HTTP_200_OK,
     dependencies=[
         Depends(bearer_scheme),
-        Depends(require_scope("audits:read")),
+        Depends(require_scope("audits:export")),
     ],
 )
 async def export_audit_report_pdf(

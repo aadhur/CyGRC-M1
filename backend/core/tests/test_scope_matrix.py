@@ -5,7 +5,6 @@ from httpx import AsyncClient
 from sqlalchemy import text
 from uuid6 import uuid7
 
-# Full inventory of all 35 protected routes and required scopes
 PROTECTED_ENDPOINTS = [
     # Controls
     ("GET", "/v1/controls", "controls:read"),
@@ -13,7 +12,7 @@ PROTECTED_ENDPOINTS = [
     ("GET", "/v1/controls/{control_id}", "controls:read"),
     ("PATCH", "/v1/controls/{control_id}", "controls:write"),
     ("GET", "/v1/controls/{control_id}/evidence", "evidence:read"),
-    ("GET", "/v1/controls/assignees", "controls:write"),
+    ("GET", "/v1/controls/assignees", "controls:read"),
     # Frameworks
     ("GET", "/v1/frameworks", "frameworks:read"),
     ("POST", "/v1/frameworks", "frameworks:write"),
@@ -26,7 +25,7 @@ PROTECTED_ENDPOINTS = [
     ("PATCH", "/v1/risks/{risk_id}", "risks:write"),
     ("GET", "/v1/risks/{risk_id}", "risks:read"),
     ("POST", "/v1/risks/{risk_id}/close", "risks:close"),
-    # Audits (including newly unified endpoints)
+    # Audits
     ("GET", "/v1/audits", "audits:read"),
     ("POST", "/v1/audits", "audits:write"),
     ("GET", "/v1/audits/{audit_id}", "audits:read"),
@@ -36,7 +35,7 @@ PROTECTED_ENDPOINTS = [
     ("GET", "/v1/audits/{audit_id}/findings", "audits:read"),
     ("PATCH", "/v1/audits/{audit_id}/findings/{finding_id}", "audits:write"),
     ("POST", "/v1/audits/{audit_id}/sign-off", "audits:write"),
-    ("POST", "/v1/audits/{audit_id}/export", "audits:read"),
+    ("POST", "/v1/audits/{audit_id}/export", "audits:export"),
     # Audit Log
     ("GET", "/v1/audit-log", "auditlog:read"),
     # Users

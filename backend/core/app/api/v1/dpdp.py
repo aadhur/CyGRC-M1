@@ -15,8 +15,8 @@ class BreachClockResponse(BaseModel):
     status: BreachClockStatus
     started_at: datetime | None
     acknowledged_by: UUID | None
-    notified_at: datetime | None
     deadline: datetime | None
+    resolved_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,11 +35,6 @@ router = APIRouter()
 async def get_breach_clock(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """
-    Return the current tenant's DPDP breach clock.
-
-    If no clock exists yet, return the default INACTIVE state.
-    """
     result = await db.execute(
         select(DpdpBreachClock).where(
             DpdpBreachClock.status == BreachClockStatus.ACTIVE
@@ -48,12 +43,26 @@ async def get_breach_clock(
     clock = result.scalar_one_or_none()
 
     if clock is None:
+        # Check if there is a resolved clock
+        res_all = await db.execute(
+            select(DpdpBreachClock).order_by(DpdpBreachClock.started_at.desc())
+        )
+        latest = res_all.scalars().first()
+        if latest and latest.status == BreachClockStatus.RESOLVED:
+            return BreachClockResponse(
+                status=BreachClockStatus.RESOLVED,
+                started_at=latest.started_at,
+                acknowledged_by=latest.acknowledged_by,
+                deadline=None,
+                resolved_at=getattr(latest, "resolved_at", None),
+            )
+
         return BreachClockResponse(
             status=BreachClockStatus.INACTIVE,
             started_at=None,
             acknowledged_by=None,
-            notified_at=None,
             deadline=None,
+            resolved_at=None,
         )
 
     deadline = None
@@ -64,8 +73,8 @@ async def get_breach_clock(
         status=clock.status,
         started_at=clock.started_at,
         acknowledged_by=clock.acknowledged_by,
-        notified_at=clock.notified_at,
         deadline=deadline,
+        resolved_at=getattr(clock, "resolved_at", None),
     )
 
 
@@ -82,11 +91,6 @@ async def start_breach_clock(
     tenant_user: tuple[UUID, UUID] = Depends(get_tenant_and_user),
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """
-    Start the tenant's DPDP breach clock.
-
-    Reject if an ACTIVE clock already exists.
-    """
     tenant_id, user_id = tenant_user
 
     result = await db.execute(select(DpdpBreachClock))
@@ -106,14 +110,14 @@ async def start_breach_clock(
             started_at=now,
             acknowledged_by=user_id,
             status=BreachClockStatus.ACTIVE,
-            notified_at=None,
         )
         db.add(clock)
     else:
         clock.started_at = now
         clock.acknowledged_by = user_id
         clock.status = BreachClockStatus.ACTIVE
-        clock.notified_at = None
+        if hasattr(clock, "resolved_at"):
+            clock.resolved_at = None
 
     await db.commit()
 
@@ -121,8 +125,8 @@ async def start_breach_clock(
         status=clock.status,
         started_at=clock.started_at,
         acknowledged_by=clock.acknowledged_by,
-        notified_at=clock.notified_at,
         deadline=clock.started_at + timedelta(hours=72),
+        resolved_at=None,
     )
 
 
@@ -138,10 +142,6 @@ async def start_breach_clock(
 async def resolve_breach_clock(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    """
-    Resolve the tenant's current DPDP breach clock.
-    """
-
     result = await db.execute(select(DpdpBreachClock))
     clock = result.scalar_one_or_none()
 
@@ -151,18 +151,17 @@ async def resolve_breach_clock(
             detail="No breach clock exists for this tenant.",
         )
 
+    now = datetime.now(timezone.utc)
     clock.status = BreachClockStatus.RESOLVED
+    if hasattr(clock, "resolved_at"):
+        clock.resolved_at = now
 
     await db.commit()
-
-    deadline = None
-    if clock.started_at is not None:
-        deadline = clock.started_at + timedelta(hours=72)
 
     return BreachClockResponse(
         status=clock.status,
         started_at=clock.started_at,
         acknowledged_by=clock.acknowledged_by,
-        notified_at=clock.notified_at,
-        deadline=deadline,
+        deadline=None,
+        resolved_at=getattr(clock, "resolved_at", now),
     )

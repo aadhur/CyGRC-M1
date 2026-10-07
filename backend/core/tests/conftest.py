@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
@@ -25,8 +26,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 from uuid6 import uuid7
 
-TEST_DATABASE_URL = (
-    "postgresql+asyncpg://grc_app_test:test_password_123@127.0.0.1:5432/grc_platform"
+# Dynamically resolve DB host: inside Docker use 'postgres', on host use '127.0.0.1'
+DB_HOST = os.getenv("POSTGRES_HOST") or (
+    "postgres" if "postgres" in os.getenv("DATABASE_URL", "") else "127.0.0.1"
+)
+
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    f"postgresql+asyncpg://grc_app_test:test_password_123@{DB_HOST}:5432/grc_platform",
 )
 
 
@@ -221,8 +228,9 @@ async def real_tenants(db_session):
     }
 
 
-ADMIN_DATABASE_URL = (
-    "postgresql+asyncpg://grc_user:grc_local_password_123@127.0.0.1:5432/grc_platform"
+ADMIN_DATABASE_URL = os.getenv(
+    "ADMIN_DATABASE_URL",
+    f"postgresql+asyncpg://grc_user:grc_local_password_123@{DB_HOST}:5432/grc_platform",
 )
 
 
