@@ -226,6 +226,7 @@ async def get_risk_by_id(
             detail="Could not retrieve risk.",
         )
 
+
 @router.patch(
     "/{risk_id}",
     response_model=RiskPatchResponse,
