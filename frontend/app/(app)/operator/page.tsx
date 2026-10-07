@@ -1,1165 +1,631 @@
 "use client";
 
-/**
- * Platform Operator Page
- *
- * Provides a cross-tenant administration surface for platform operators.
- *
- * Permissions (scope-based per §2.7 — never role-name based):
- *   - Page access        : operator:admin
- *   - Tenant table       : operator:admin  (GET /v1/operators/tenants)
- *   - Framework creation : operator:admin  (POST /v1/frameworks)
- *   - Break-glass console: operator:admin  (GET/POST /v1/operators/break-glass[...])
- *
- * These are direct client-side calls — no server-side business logic wrapper.
- */
-
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth/context";
-import { SCOPES } from "@/lib/auth/permissions";
-import { api, ApiError } from "@/lib/api/client";
-import { ForbiddenState } from "@/components/ForbiddenState";
+import {
+  apiFetch,
+  getActiveBreakGlassSessionId,
+  clearDeadBreakGlassSession,
+} from "@/lib/api/client";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { ForbiddenState } from "@/components/ForbiddenState";
 import {
-  clearBreakGlassSession,
-  setBreakGlassSession,
-  useBreakGlassSession,
-  useCountdown,
-  formatRemaining,
-} from "@/components/BreakGlassBanner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import {
-  ShieldAlert,
-  RefreshCw,
-  Plus,
-  Building2,
-  BookOpen,
-  CheckCircle2,
-  XCircle,
+  Terminal,
+  Activity,
+  AlertOctagon,
   Clock,
+  CheckCircle2,
   Loader2,
-  Siren,
+  ArrowDownCircle,
   LogIn,
+  LogOut,
+  X,
+  AlertTriangle,
+  AlertCircle,
+  Check,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type TenantStatus = "provisioning" | "active" | "deleting";
-
-interface Tenant {
+interface TenantItem {
   tenant_id: string;
   name: string;
-  status: TenantStatus;
+  status: string;
   plan: string;
   created_at: string;
 }
 
-interface Framework {
-  framework_id: string;
-  code: string;
-  version: string;
-  name: string;
-}
-
-interface CreateFrameworkPayload {
-  code: string;
-  version: string;
-  name: string;
-}
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const TENANT_STATUS_CONFIG: Record<
-  TenantStatus,
-  { label: string; icon: React.ReactNode; className: string }
-> = {
-  active: {
-    label: "Active",
-    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-    className: "text-emerald-400 bg-emerald-400/10 ring-emerald-400/20",
-  },
-  provisioning: {
-    label: "Provisioning",
-    icon: <Clock className="h-3.5 w-3.5" />,
-    className: "text-amber-400 bg-amber-400/10 ring-amber-400/20",
-  },
-  deleting: {
-    label: "Deleting",
-    icon: <XCircle className="h-3.5 w-3.5" />,
-    className: "text-red-400 bg-red-400/10 ring-red-400/20",
-  },
-};
-
-const PLAN_STYLES: Record<string, string> = {
-  enterprise: "text-violet-400 bg-violet-400/10 ring-violet-400/20",
-  pro:        "text-blue-400   bg-blue-400/10   ring-blue-400/20",
-  starter:    "text-zinc-400   bg-zinc-400/10   ring-zinc-400/20",
-};
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function TenantStatusBadge({ status }: { status: TenantStatus }) {
-  const config =
-    TENANT_STATUS_CONFIG[status] ?? TENANT_STATUS_CONFIG.provisioning;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
-        config.className
-      )}
-    >
-      {config.icon}
-      {config.label}
-    </span>
-  );
-}
-
-function PlanBadge({ plan }: { plan: string }) {
-  const planKey = plan.toLowerCase();
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize",
-        PLAN_STYLES[planKey] ?? "text-zinc-400 bg-zinc-400/10 ring-zinc-400/20"
-      )}
-    >
-      {plan}
-    </span>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-start gap-3 border-b border-border px-6 py-5">
-        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          {icon}
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-foreground">{title}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-// ─── Tenant Table ─────────────────────────────────────────────────────────────
-
-function TenantTable() {
-  const {
-    data: tenants = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery<Tenant[]>({
-    queryKey: ["operator-tenants"],
-    queryFn: () => api.get<Tenant[]>("/v1/operators/tenants"),
-  });
-
-  function formatDate(iso: string) {
-    try {
-      return new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(new Date(iso));
-    } catch {
-      return iso;
-    }
-  }
-
-  return (
-    <SectionCard
-      title="Tenant Registry"
-      description="All tenants provisioned on this platform."
-      icon={<Building2 className="h-4 w-4" />}
-    >
-      {/* Controls bar */}
-      <div className="flex items-center justify-between border-b border-border px-6 py-3">
-        <span className="text-sm text-muted-foreground">
-          {isLoading
-            ? "Loading…"
-            : `${tenants.length} tenant${tenants.length !== 1 ? "s" : ""}`}
-        </span>
-        <button
-          id="refresh-tenants-btn"
-          type="button"
-          onClick={() => refetch()}
-          disabled={isLoading}
-          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
-          title="Refresh"
-        >
-          <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-        </button>
-      </div>
-
-      {/* Loading skeleton */}
-      {isLoading && (
-        <div className="divide-y divide-border">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-6 py-4">
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-40 animate-pulse rounded bg-muted" />
-                <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-              </div>
-              <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Error */}
-      {isError && !isLoading && (
-        <div className="flex flex-col items-center gap-3 py-12 text-center">
-          <ShieldAlert className="h-7 w-7 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Failed to load tenants.</p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="text-sm text-primary underline-offset-2 hover:underline"
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      {/* Empty */}
-      {!isLoading && !isError && tenants.length === 0 && (
-        <div className="flex flex-col items-center gap-2 py-12">
-          <p className="text-sm text-muted-foreground">No tenants found.</p>
-        </div>
-      )}
-
-      {/* Table */}
-      {!isLoading && !isError && tenants.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <th className="px-6 py-3">Tenant Name</th>
-                <th className="px-6 py-3">Plan</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Created</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {tenants.map((tenant) => (
-                <tr
-                  key={tenant.tenant_id}
-                  className="transition-colors hover:bg-muted/30"
-                >
-                  <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-foreground">
-                      {tenant.name}
-                    </p>
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                      {tenant.tenant_id}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <PlanBadge plan={tenant.plan} />
-                  </td>
-                  <td className="px-6 py-4">
-                    <TenantStatusBadge status={tenant.status} />
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(tenant.created_at)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
-// ─── Framework Creation Form ──────────────────────────────────────────────────
-
-function FrameworkForm() {
-  const queryClient = useQueryClient();
-
-  const [code, setCode]       = useState("");
-  const [version, setVersion] = useState("");
-  const [name, setName]       = useState("");
-  const [errors, setErrors]   = useState<Partial<Record<"code" | "version" | "name", string>>>({});
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [apiError, setApiError]     = useState<string | null>(null);
-
-  const createMutation = useMutation({
-    mutationFn: (payload: CreateFrameworkPayload) =>
-      api.post<Framework>("/v1/frameworks", payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["frameworks"] });
-      setCode("");
-      setVersion("");
-      setName("");
-      setErrors({});
-      setApiError(null);
-      setSuccessMsg(`Framework "${data.name}" (${data.code}) created.`);
-      setTimeout(() => setSuccessMsg(null), 5000);
-    },
-    onError: (err: Error) => {
-      setApiError(err.message ?? "Failed to create framework.");
-    },
-  });
-
-  function validate(): boolean {
-    const next: typeof errors = {};
-    if (!code.trim())    next.code    = "Code is required.";
-    if (!version.trim()) next.version = "Version is required.";
-    if (!name.trim())    next.name    = "Name is required.";
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setApiError(null);
-    if (!validate()) return;
-    createMutation.mutate({
-      code: code.trim().toUpperCase(),
-      version: version.trim(),
-      name: name.trim(),
-    });
-  }
-
-  return (
-    <SectionCard
-      title="Add Framework"
-      description="Register a new master compliance framework available to all tenants."
-      icon={<BookOpen className="h-4 w-4" />}
-    >
-      <form onSubmit={handleSubmit} noValidate className="space-y-5 px-6 py-6">
-        <div className="grid gap-5 sm:grid-cols-2">
-          {/* Code */}
-          <div>
-            <label
-              htmlFor="framework-code"
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              Code
-              <span className="ml-0.5 text-destructive">*</span>
-            </label>
-            <input
-              id="framework-code"
-              type="text"
-              value={code}
-              onChange={(e) => { setCode(e.target.value); setErrors((p) => ({ ...p, code: undefined })); }}
-              placeholder="e.g. ISO27001"
-              disabled={createMutation.isPending}
-              aria-invalid={!!errors.code}
-              className={cn(
-                "w-full rounded-lg border bg-muted px-3 py-2 font-mono text-sm text-foreground placeholder:font-sans placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
-                errors.code ? "border-destructive" : "border-input"
-              )}
-            />
-            {errors.code && (
-              <p className="mt-1 text-xs text-destructive">{errors.code}</p>
-            )}
-          </div>
-
-          {/* Version */}
-          <div>
-            <label
-              htmlFor="framework-version"
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              Version
-              <span className="ml-0.5 text-destructive">*</span>
-            </label>
-            <input
-              id="framework-version"
-              type="text"
-              value={version}
-              onChange={(e) => { setVersion(e.target.value); setErrors((p) => ({ ...p, version: undefined })); }}
-              placeholder="e.g. 2022"
-              disabled={createMutation.isPending}
-              aria-invalid={!!errors.version}
-              className={cn(
-                "w-full rounded-lg border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
-                errors.version ? "border-destructive" : "border-input"
-              )}
-            />
-            {errors.version && (
-              <p className="mt-1 text-xs text-destructive">{errors.version}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Name (full row) */}
-        <div>
-          <label
-            htmlFor="framework-name"
-            className="mb-1.5 block text-sm font-medium text-foreground"
-          >
-            Full Name
-            <span className="ml-0.5 text-destructive">*</span>
-          </label>
-          <input
-            id="framework-name"
-            type="text"
-            value={name}
-            onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: undefined })); }}
-            placeholder="e.g. ISO/IEC 27001:2022 — Information Security"
-            disabled={createMutation.isPending}
-            aria-invalid={!!errors.name}
-            className={cn(
-              "w-full rounded-lg border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
-              errors.name ? "border-destructive" : "border-input"
-            )}
-          />
-          {errors.name && (
-            <p className="mt-1 text-xs text-destructive">{errors.name}</p>
-          )}
-        </div>
-
-        {/* Feedback */}
-        {successMsg && (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-            {successMsg}
-          </div>
-        )}
-        {apiError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {apiError}
-          </div>
-        )}
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <button
-            id="create-framework-btn"
-            type="submit"
-            disabled={createMutation.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {createMutation.isPending ? (
-              <>
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Creating…
-              </>
-            ) : (
-              <>
-                <Plus className="h-3.5 w-3.5" />
-                Create framework
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    </SectionCard>
-  );
-}
-
-// ─── Break-Glass Console ──────────────────────────────────────────────────────
-
-interface BreakGlassSession {
+interface BreakGlassSessionItem {
   session_id: string;
   target_tenant_id: string;
   requested_by: string;
+  requested_by_email?: string | null;
+  approved_by?: string | null;
   ticket_ref: string;
   reason: string;
   duration_hours: number;
-  status: string;
+  status: "PENDING" | "ACTIVE" | "EXPIRED" | "REVOKED";
   created_at: string;
   approved_at?: string | null;
   expires_at?: string | null;
 }
 
-interface BreakGlassRequestPayload {
-  target_tenant_id: string;
-  ticket_ref: string;
-  reason: string;
-  duration_hours: number;
+interface ToastMessage {
+  text: string;
+  type: "success" | "error" | "warning";
 }
-
-const BREAK_GLASS_KEY = ["operator-break-glass"];
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const TICKET_RE = /^INC-[0-9]{3,10}$/;
-
-function formatDateTime(iso?: string | null) {
-  if (!iso) return "—";
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
-function errorMessage(err: unknown, fallback: string) {
-  return err instanceof Error && err.message ? err.message : fallback;
-}
-
-function useBreakGlassSessions() {
-  return useQuery<BreakGlassSession[]>({
-    queryKey: BREAK_GLASS_KEY,
-    queryFn: () => api.get<BreakGlassSession[]>("/v1/operators/break-glass"),
-    retry: (count, err) =>
-      !(err instanceof ApiError && err.status === 403) && count < 1,
-  });
-}
-
-function BreakGlassRequestForm() {
-  const queryClient = useQueryClient();
-
-  const [tenantId, setTenantId] = useState("");
-  const [ticketRef, setTicketRef] = useState("");
-  const [reason, setReason] = useState("");
-  const [duration, setDuration] = useState("2");
-  const [errors, setErrors] = useState<
-    Partial<Record<"tenant" | "ticket" | "reason" | "duration", string>>
-  >({});
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  const requestMutation = useMutation({
-    mutationFn: (payload: BreakGlassRequestPayload) =>
-      api.post<{ session_id: string }>("/v1/operators/break-glass", payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: BREAK_GLASS_KEY });
-      setTenantId("");
-      setTicketRef("");
-      setReason("");
-      setDuration("2");
-      setErrors({});
-      setApiError(null);
-      setSuccessMsg("Break-glass request submitted for approval.");
-    },
-    onError: (err: unknown) => {
-      setSuccessMsg(null);
-      setApiError(errorMessage(err, "Failed to submit break-glass request."));
-    },
-  });
-
-  function validate(): boolean {
-    const next: typeof errors = {};
-    if (!UUID_RE.test(tenantId.trim()))
-      next.tenant = "Enter a valid tenant UUID.";
-    if (!TICKET_RE.test(ticketRef.trim()))
-      next.ticket = "Ticket must look like INC-1234.";
-    if (reason.trim().length < 10)
-      next.reason = "Reason must be at least 10 characters.";
-    const hours = Number(duration);
-    if (!Number.isInteger(hours) || hours < 1 || hours > 8)
-      next.duration = "Duration must be a whole number from 1 to 8 hours.";
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setApiError(null);
-    setSuccessMsg(null);
-    if (!validate()) return;
-    requestMutation.mutate({
-      target_tenant_id: tenantId.trim(),
-      ticket_ref: ticketRef.trim(),
-      reason: reason.trim(),
-      duration_hours: Number(duration),
-    });
-  }
-
-  const inputCls = (hasError?: string) =>
-    cn(
-      "w-full rounded-lg border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
-      hasError ? "border-destructive" : "border-input"
-    );
-
-  return (
-    <SectionCard
-      title="Request Break-Glass Access"
-      description="Request time-boxed emergency access to a tenant. A second operator must approve."
-      icon={<Siren className="h-4 w-4" />}
-    >
-      <form onSubmit={handleSubmit} noValidate className="space-y-5 px-6 py-6">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="bg-tenant-id"
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              Target Tenant ID<span className="ml-0.5 text-destructive">*</span>
-            </label>
-            <input
-              id="bg-tenant-id"
-              type="text"
-              value={tenantId}
-              onChange={(e) => {
-                setTenantId(e.target.value);
-                setErrors((p) => ({ ...p, tenant: undefined }));
-              }}
-              placeholder="00000000-0000-0000-0000-000000000000"
-              disabled={requestMutation.isPending}
-              aria-invalid={!!errors.tenant}
-              className={cn(inputCls(errors.tenant), "font-mono")}
-            />
-            {errors.tenant && (
-              <p className="mt-1 text-xs text-destructive">{errors.tenant}</p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="bg-ticket-ref"
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              Ticket Ref<span className="ml-0.5 text-destructive">*</span>
-            </label>
-            <input
-              id="bg-ticket-ref"
-              type="text"
-              value={ticketRef}
-              onChange={(e) => {
-                setTicketRef(e.target.value);
-                setErrors((p) => ({ ...p, ticket: undefined }));
-              }}
-              placeholder="INC-1234"
-              disabled={requestMutation.isPending}
-              aria-invalid={!!errors.ticket}
-              className={cn(inputCls(errors.ticket), "font-mono")}
-            />
-            {errors.ticket && (
-              <p className="mt-1 text-xs text-destructive">{errors.ticket}</p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="bg-reason"
-            className="mb-1.5 block text-sm font-medium text-foreground"
-          >
-            Reason<span className="ml-0.5 text-destructive">*</span>
-          </label>
-          <textarea
-            id="bg-reason"
-            rows={3}
-            value={reason}
-            onChange={(e) => {
-              setReason(e.target.value);
-              setErrors((p) => ({ ...p, reason: undefined }));
-            }}
-            placeholder="Describe why emergency access is needed (min. 10 characters)"
-            disabled={requestMutation.isPending}
-            aria-invalid={!!errors.reason}
-            className={inputCls(errors.reason)}
-          />
-          {errors.reason && (
-            <p className="mt-1 text-xs text-destructive">{errors.reason}</p>
-          )}
-        </div>
-
-        <div className="sm:w-48">
-          <label
-            htmlFor="bg-duration"
-            className="mb-1.5 block text-sm font-medium text-foreground"
-          >
-            Duration (hours)<span className="ml-0.5 text-destructive">*</span>
-          </label>
-          <input
-            id="bg-duration"
-            type="number"
-            min={1}
-            max={8}
-            step={1}
-            value={duration}
-            onChange={(e) => {
-              setDuration(e.target.value);
-              setErrors((p) => ({ ...p, duration: undefined }));
-            }}
-            disabled={requestMutation.isPending}
-            aria-invalid={!!errors.duration}
-            className={inputCls(errors.duration)}
-          />
-          {errors.duration && (
-            <p className="mt-1 text-xs text-destructive">{errors.duration}</p>
-          )}
-        </div>
-
-        {successMsg && (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-            {successMsg}
-          </div>
-        )}
-        {apiError && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {apiError}
-          </div>
-        )}
-
-        <div className="flex justify-end">
-          <button
-            id="request-break-glass-btn"
-            type="submit"
-            disabled={requestMutation.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {requestMutation.isPending ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Submitting…
-              </>
-            ) : (
-              <>
-                <Siren className="h-3.5 w-3.5" />
-                Request access
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    </SectionCard>
-  );
-}
-
-function SessionsStateBlock({
-  isLoading,
-  isError,
-  onRetry,
-  label,
-}: {
-  isLoading: boolean;
-  isError: boolean;
-  onRetry: () => void;
-  label: string;
-}) {
-  if (isLoading) {
-    return (
-      <div className="divide-y divide-border">
-        {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 px-6 py-4">
-            <div className="flex-1 space-y-2">
-              <div className="h-3 w-48 animate-pulse rounded bg-muted" />
-              <div className="h-3 w-28 animate-pulse rounded bg-muted" />
-            </div>
-            <div className="h-8 w-20 animate-pulse rounded bg-muted" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-  if (isError) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-12 text-center">
-        <ShieldAlert className="h-7 w-7 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Failed to load {label}.</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="text-sm text-primary underline-offset-2 hover:underline"
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-  return null;
-}
-
-function PendingApprovals() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const currentUserId = user?.sub ?? null;
-  const { data = [], isLoading, isError, refetch } = useBreakGlassSessions();
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const approveMutation = useMutation({
-    mutationFn: (id: string) =>
-      api.post(`/v1/operators/break-glass/${id}/approve`),
-    onMutate: () => setActionError(null),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: BREAK_GLASS_KEY });
-    },
-    onError: (err: unknown) =>
-      setActionError(errorMessage(err, "Failed to approve request.")),
-  });
-
-  const pending = data.filter((s) => s.status?.toUpperCase() === "PENDING");
-
-  return (
-    <SectionCard
-      title="Pending Approvals"
-      description="Break-glass requests awaiting a second operator's approval."
-      icon={<Clock className="h-4 w-4" />}
-    >
-      <SessionsStateBlock
-        isLoading={isLoading}
-        isError={isError && !isLoading}
-        onRetry={() => refetch()}
-        label="break-glass requests"
-      />
-
-      {actionError && (
-        <div className="mx-6 mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {actionError}
-        </div>
-      )}
-
-      {!isLoading && !isError && pending.length === 0 && (
-        <div className="py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            No pending break-glass requests.
-          </p>
-        </div>
-      )}
-
-      {!isLoading && !isError && pending.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <th className="px-6 py-3">Target Tenant</th>
-                <th className="px-6 py-3">Requester UUID</th>
-                <th className="px-6 py-3">Ticket Ref</th>
-                <th className="px-6 py-3">Reason</th>
-                <th className="px-6 py-3">Requested At</th>
-                <th className="px-6 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {pending.map((s) => {
-                const isOwn =
-                  currentUserId !== null && s.requested_by === currentUserId;
-                const busy =
-                  approveMutation.isPending &&
-                  approveMutation.variables === s.session_id;
-                return (
-                  <tr key={s.session_id} className="hover:bg-muted/30">
-                    <td className="px-6 py-4 font-mono text-xs text-foreground">
-                      {s.target_tenant_id}
-                    </td>
-                    <td className="max-w-[10rem] px-6 py-4">
-                      <span
-                        className="block truncate font-mono text-xs text-muted-foreground"
-                        title={s.requested_by}
-                      >
-                        {s.requested_by}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs text-foreground">
-                      {s.ticket_ref}
-                    </td>
-                    <td className="max-w-xs px-6 py-4 text-sm text-muted-foreground">
-                      <span className="line-clamp-2" title={s.reason}>
-                        {s.reason}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
-                      {formatDateTime(s.created_at)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => approveMutation.mutate(s.session_id)}
-                        disabled={isOwn || approveMutation.isPending}
-                        title={
-                          isOwn
-                            ? "You cannot approve your own request"
-                            : "Approve"
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {busy ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        )}
-                        Approve
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
-function ActiveSessionRow({
-  session,
-  isMine,
-  isActiveLocally,
-  onRevoke,
-  revoking,
-}: {
-  session: BreakGlassSession;
-  isMine: boolean;
-  isActiveLocally: boolean;
-  onRevoke: (s: BreakGlassSession) => void;
-  revoking: boolean;
-}) {
-  const remaining = useCountdown(session.expires_at);
-
-  return (
-    <tr className="hover:bg-muted/30">
-      <td className="px-6 py-4 font-mono text-xs text-foreground">
-        {session.target_tenant_id}
-      </td>
-      <td className="px-6 py-4 font-mono text-xs text-foreground">
-        {session.ticket_ref}
-      </td>
-      <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
-        {formatDateTime(session.expires_at)}
-      </td>
-      <td
-        className="px-6 py-4 font-mono text-sm tabular-nums text-amber-400"
-        suppressHydrationWarning
-      >
-        {remaining === null ? "--:--:--" : formatRemaining(remaining)}
-      </td>
-      <td className="px-6 py-4">
-        <div className="flex justify-end gap-2">
-          {isMine && !isActiveLocally && (
-            <button
-              type="button"
-              onClick={() =>
-                session.expires_at &&
-                setBreakGlassSession({
-                  sessionId: session.session_id,
-                  tenantId: session.target_tenant_id,
-                  expiresAt: session.expires_at,
-                })
-              }
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-400 transition hover:bg-amber-500/20"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              Enter
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onRevoke(session)}
-            disabled={revoking}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {revoking && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Revoke
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function ActiveSessions() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const currentUserId = user?.sub ?? null;
-  const localSession = useBreakGlassSession();
-  const { data = [], isLoading, isError, refetch } = useBreakGlassSessions();
-
-  const [target, setTarget] = useState<BreakGlassSession | null>(null);
-  const [revokeReason, setRevokeReason] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const revokeMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      api.post(`/v1/operators/break-glass/${id}/revoke`, { reason }),
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: BREAK_GLASS_KEY });
-      if (localSession?.sessionId === vars.id) {
-        // Drop the local session header so we stop sending a dead session.
-        clearBreakGlassSession();
-      }
-      setTarget(null);
-      setRevokeReason("");
-      setActionError(null);
-    },
-    onError: (err: unknown) =>
-      setActionError(errorMessage(err, "Failed to revoke session.")),
-  });
-
-  const now = Date.now();
-  const active = data.filter(
-    (s) =>
-      s.status?.toUpperCase() === "ACTIVE" &&
-      (!s.expires_at || new Date(s.expires_at).getTime() > now)
-  );
-
-  const reasonValid = revokeReason.trim().length >= 5;
-
-  function closeModal() {
-    if (revokeMutation.isPending) return;
-    setTarget(null);
-    setRevokeReason("");
-    setActionError(null);
-  }
-
-  return (
-    <SectionCard
-      title="Active Break-Glass Sessions"
-      description="Approved sessions currently granting cross-tenant access."
-      icon={<ShieldAlert className="h-4 w-4" />}
-    >
-      <SessionsStateBlock
-        isLoading={isLoading}
-        isError={isError && !isLoading}
-        onRetry={() => refetch()}
-        label="active sessions"
-      />
-
-      {!isLoading && !isError && active.length === 0 && (
-        <div className="flex flex-col items-center gap-1 py-12 text-center">
-          <p className="text-sm font-medium text-foreground">
-            No active break-glass sessions
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Approved requests will appear here until they expire or are revoked.
-          </p>
-        </div>
-      )}
-
-      {!isLoading && !isError && active.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <th className="px-6 py-3">Target Tenant</th>
-                <th className="px-6 py-3">Ticket</th>
-                <th className="px-6 py-3">Expires At</th>
-                <th className="px-6 py-3">Countdown</th>
-                <th className="px-6 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {active.map((s) => (
-                <ActiveSessionRow
-                  key={s.session_id}
-                  session={s}
-                  isMine={currentUserId !== null && s.requested_by === currentUserId}
-                  isActiveLocally={localSession?.sessionId === s.session_id}
-                  onRevoke={(sess) => {
-                    setActionError(null);
-                    setTarget(sess);
-                  }}
-                  revoking={
-                    revokeMutation.isPending &&
-                    revokeMutation.variables?.id === s.session_id
-                  }
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <ConfirmModal
-        isOpen={target !== null}
-        onClose={closeModal}
-        onConfirm={() => {
-          if (target && reasonValid) {
-            revokeMutation.mutate({
-              id: target.session_id,
-              reason: revokeReason.trim(),
-            });
-          }
-        }}
-        title="Revoke break-glass session"
-        description={
-          target ? (
-            <>
-              This immediately ends access to tenant{" "}
-              <span className="font-mono text-zinc-200">
-                {target.target_tenant_id}
-              </span>{" "}
-              (ticket {target.ticket_ref}).
-            </>
-          ) : (
-            ""
-          )
-        }
-        confirmText="Revoke session"
-        variant="danger"
-        isLoading={revokeMutation.isPending}
-        disabled={!reasonValid}
-      >
-        <label
-          htmlFor="bg-revoke-reason"
-          className="mb-1.5 block text-sm font-medium text-zinc-300"
-        >
-          Revoke reason
-        </label>
-        <textarea
-          id="bg-revoke-reason"
-          rows={3}
-          value={revokeReason}
-          onChange={(e) => setRevokeReason(e.target.value)}
-          disabled={revokeMutation.isPending}
-          placeholder="Why is this session being revoked? (min. 5 characters)"
-          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
-        />
-        {actionError && (
-          <p className="mt-2 text-xs text-rose-400">{actionError}</p>
-        )}
-      </ConfirmModal>
-    </SectionCard>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OperatorPage() {
-  const { can } = useAuth();
+  const { user, can } = useAuth();
+  const formRef = useRef<HTMLFormElement>(null);
 
-  // Scope-based gate: operator:admin is the correct scope from auth.py
-  const canAccess = can([SCOPES.OPERATOR_ADMIN]);
+  const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
 
-  if (!canAccess) {
-    return <ForbiddenState />;
+  const [sessions, setSessions] = useState<BreakGlassSessionItem[]>([]);
+  const [currentActiveSessionId, setCurrentActiveSessionId] = useState<string | null>(null);
+
+  // Live timer tick for accurate countdown calculations
+  const [now, setNow] = useState<number>(Date.now());
+
+  const [bgForm, setBgForm] = useState({
+    target_tenant_id: "",
+    ticket_ref: "",
+    reason: "",
+    duration_hours: 2,
+  });
+
+  const [revokeSessionId, setRevokeSessionId] = useState<string | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revoking, setRevoking] = useState(false);
+
+  // In-app Notification Banner State (Replaces native browser alert popups)
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" | "warning" = "success") => {
+    setToast({ text, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.text === text ? null : prev));
+    }, 4500);
+  };
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const loadTenants = async () => {
+    setTenantsLoading(true);
+    try {
+      const res = await apiFetch<any>("/v1/operators/tenants");
+      const list = Array.isArray(res) ? res : res?.tenants || [];
+      setTenants(list);
+    } catch (err: any) {
+      console.error("Failed to load tenants:", err);
+    } finally {
+      setTenantsLoading(false);
+    }
+  };
+
+  const loadSessions = async () => {
+    try {
+      const res = await apiFetch<BreakGlassSessionItem[]>("/v1/operators/break-glass");
+      setSessions(res || []);
+    } catch (err: any) {
+      console.error("Failed to load break-glass sessions:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadTenants();
+    if (can(["operator:break-glass"])) {
+      loadSessions();
+    }
+    setCurrentActiveSessionId(getActiveBreakGlassSessionId());
+  }, []);
+
+  const handleSelectTenantFromTable = (tenantId: string) => {
+    setBgForm((prev) => ({ ...prev, target_tenant_id: tenantId }));
+    formRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleRequestBreakGlass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bgForm.target_tenant_id) {
+      showToast("Please select a target customer tenant.", "warning");
+      return;
+    }
+
+    try {
+      await apiFetch("/v1/operators/break-glass", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bgForm),
+      });
+      setBgForm({ target_tenant_id: "", ticket_ref: "", reason: "", duration_hours: 2 });
+      await loadSessions();
+      showToast(
+        "Break-glass request submitted. A peer operator must approve it before access is unlocked.",
+        "success"
+      );
+    } catch (err: any) {
+      showToast(err.message || "Failed to submit request.", "error");
+    }
+  };
+
+  const handleApprove = async (sessionId: string) => {
+    try {
+      await apiFetch(`/v1/operators/break-glass/${sessionId}/approve`, {
+        method: "POST",
+      });
+      await loadSessions();
+      showToast(
+        "Session approved. The elevation countdown has started and workspace entry is unlocked.",
+        "success"
+      );
+    } catch (err: any) {
+      showToast(err.message || "Approval failed.", "error");
+    }
+  };
+
+  const handleEnterSession = (session: BreakGlassSessionItem) => {
+    if (session.status !== "ACTIVE") {
+      showToast("Entry restricted: this session requires approval from a peer operator.", "warning");
+      return;
+    }
+
+    if (session.expires_at && new Date(session.expires_at).getTime() <= now) {
+      showToast("Cannot enter: this emergency session has expired.", "error");
+      return;
+    }
+
+    const payload = JSON.stringify({
+      sessionId: session.session_id,
+      tenantId: session.target_tenant_id,
+      ticketRef: session.ticket_ref,
+      expiresAt: session.expires_at,
+    });
+
+    sessionStorage.setItem("cygrc_break_glass_session", payload);
+    localStorage.setItem("cygrc_break_glass_session", payload);
+    window.dispatchEvent(new Event("cygrc:break-glass-change"));
+    window.location.reload();
+  };
+
+  const handleExitSession = () => {
+    clearDeadBreakGlassSession();
+    setCurrentActiveSessionId(null);
+    window.location.reload();
+  };
+
+  const handleRevokeConfirm = async () => {
+    if (!revokeSessionId) return;
+    setRevoking(true);
+    try {
+      await apiFetch(`/v1/operators/break-glass/${revokeSessionId}/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: revokeReason }),
+      });
+      if (currentActiveSessionId === revokeSessionId) {
+        clearDeadBreakGlassSession();
+      }
+      setRevokeSessionId(null);
+      setRevokeReason("");
+      await loadSessions();
+      showToast("Emergency session successfully revoked.", "success");
+    } catch (err: any) {
+      showToast(err.message || "Revocation failed.", "error");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
+  if (!can(["operator:admin"]) && !can(["operator:break-glass"])) {
+    return <ForbiddenState message="Platform Operator console is restricted to operator roles." />;
   }
 
+  const pendingSessions = sessions.filter((s) => s.status === "PENDING");
+  const activeSessions = sessions.filter((s) => s.status === "ACTIVE");
+
+  // Helper to format remaining time after approval
+  const formatCountdown = (expiresAt: string | null | undefined) => {
+    if (!expiresAt) return "Starts on approval";
+    const diff = new Date(expiresAt).getTime() - now;
+    if (diff <= 0) return "Expired";
+    const totalSec = Math.floor(diff / 1000);
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)} remaining`;
+  };
+
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
-      {/* Page header */}
+    <div className="space-y-8 relative">
+      {/* Toast Notification Card */}
+      {toast && (
+        <div
+          className={`fixed top-6 right-8 z-50 px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 text-xs font-semibold backdrop-blur-md transition-all duration-300 ${
+            toast.type === "success"
+              ? "bg-emerald-950/95 border-emerald-600/70 text-emerald-200"
+              : toast.type === "warning"
+              ? "bg-amber-950/95 border-amber-600/70 text-amber-200"
+              : "bg-rose-950/95 border-rose-600/70 text-rose-200"
+          }`}
+        >
+          {toast.type === "success" && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
+          {toast.type === "warning" && <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />}
+          {toast.type === "error" && <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />}
+          <span>{toast.text}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-3 text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Platform Operator
+        <p className="text-xs font-mono font-semibold tracking-wider text-brand-orange uppercase">
+          PLATFORM OPERATIONS
+        </p>
+        <h1 className="text-2xl font-heading font-bold text-slate-100 mt-1">
+          Operator Console & Emergency Control
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Cross-tenant administration console. Changes made here affect all
-          tenants on the platform.
+        <p className="text-sm text-slate-400 mt-1">
+          Inspect customer tenants and manage dual-control break-glass emergency elevation sessions.
         </p>
       </div>
 
-      {/* Tenant registry */}
-      <TenantTable />
+      {can(["operator:break-glass"]) && (
+        <div className="space-y-6">
+          {/* Section 1: Request Emergency Access */}
+          <section className="p-6 bg-surface border border-border rounded-2xl space-y-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-400">
+                <AlertOctagon size={20} />
+              </div>
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-slate-100">
+                  Request Emergency Break-Glass Access
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Dual-control authorization: another operator must approve before elevation is granted.
+                </p>
+              </div>
+            </div>
 
-      {/* Break-glass console */}
-      <BreakGlassRequestForm />
-      <PendingApprovals />
-      <ActiveSessions />
+            <form ref={formRef} onSubmit={handleRequestBreakGlass} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Target Customer Tenant *
+                </label>
+                <select
+                  required
+                  value={bgForm.target_tenant_id}
+                  onChange={(e) => setBgForm({ ...bgForm, target_tenant_id: e.target.value })}
+                  className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-brand-orange cursor-pointer"
+                >
+                  <option value="">-- Select a Customer Tenant --</option>
+                  {tenants.map((t) => (
+                    <option key={t.tenant_id} value={t.tenant_id}>
+                      {t.name} ({t.plan}) — {t.tenant_id.slice(0, 8)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-      {/* Framework creation */}
-      <FrameworkForm />
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Ticket Reference (e.g. INC-90145) *
+                </label>
+                <input
+                  required
+                  pattern="^[A-Z]+-[0-9]{3,10}$"
+                  value={bgForm.ticket_ref}
+                  onChange={(e) => setBgForm({ ...bgForm, ticket_ref: e.target.value.toUpperCase() })}
+                  placeholder="e.g. INC-90145"
+                  className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-brand-orange"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Reason for Emergency Access (min 10 chars) *
+                </label>
+                <textarea
+                  required
+                  minLength={10}
+                  rows={2}
+                  value={bgForm.reason}
+                  onChange={(e) => setBgForm({ ...bgForm, reason: e.target.value })}
+                  placeholder="State the customer support incident, outage, or forensic investigation context..."
+                  className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-orange"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Duration Window: {bgForm.duration_hours} hours (starts after approval)
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={8}
+                  value={bgForm.duration_hours}
+                  onChange={(e) => setBgForm({ ...bgForm, duration_hours: Number(e.target.value) })}
+                  className="w-full accent-brand-orange cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-end justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl shadow transition-colors cursor-pointer"
+                >
+                  Submit Break-Glass Request
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* Section 2: Pending Approvals (Dual Control) */}
+          <section className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg p-6 space-y-4">
+            <h3 className="text-sm font-mono uppercase text-slate-400 font-semibold tracking-wider">
+              Pending Approvals (Dual Control)
+            </h3>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-surface-raised/60 font-mono text-slate-400">
+                <tr>
+                  <th className="p-3">Target Tenant</th>
+                  <th className="p-3">Ticket</th>
+                  <th className="p-3">Requested Window</th>
+                  <th className="p-3">Reason</th>
+                  <th className="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pendingSessions.map((s) => {
+                  const isOwnRequest = user?.sub === s.requested_by || user?.userId === s.requested_by;
+                  const matchedTenant = tenants.find((t) => t.tenant_id === s.target_tenant_id);
+
+                  return (
+                    <tr key={s.session_id}>
+                      <td className="p-3 font-mono text-slate-300">
+                        {matchedTenant
+                          ? `${matchedTenant.name} (${s.target_tenant_id.slice(0, 8)}...)`
+                          : `${s.target_tenant_id.slice(0, 8)}...`}
+                      </td>
+                      <td className="p-3 font-bold text-slate-100">{s.ticket_ref}</td>
+                      <td className="p-3 text-slate-400 font-mono">
+                        {s.duration_hours}h (starts on peer approval)
+                      </td>
+                      <td className="p-3 text-slate-300">{s.reason}</td>
+                      <td className="p-3 text-right">
+                        {isOwnRequest ? (
+                          <span
+                            className="inline-block px-2.5 py-1 text-[11px] font-mono text-amber-400 bg-amber-950/40 border border-amber-800/40 rounded-lg"
+                            title="Dual-control policy: You cannot approve your own request. Log in as operator2 to approve."
+                          >
+                            Awaiting Peer Sign-off
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleApprove(s.session_id)}
+                            className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-medium rounded-lg cursor-pointer transition-colors shadow-sm"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {pendingSessions.length === 0 && (
+              <div className="text-center text-slate-500 text-xs py-4">No pending break-glass requests.</div>
+            )}
+          </section>
+
+          {/* Section 3: Active Elevated Sessions */}
+          <section className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg p-6 space-y-4">
+            <h3 className="text-sm font-mono uppercase text-slate-400 font-semibold tracking-wider">
+              Active Elevated Sessions (Approved by Peer)
+            </h3>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-surface-raised/60 font-mono text-slate-400">
+                <tr>
+                  <th className="p-3">Target Tenant</th>
+                  <th className="p-3">Ticket</th>
+                  <th className="p-3">Time Remaining</th>
+                  <th className="p-3 text-right">Emergency Workspace</th>
+                  <th className="p-3 text-right">Dual-Control Revoke</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {activeSessions.map((s) => {
+                  const matchedTenant = tenants.find((t) => t.tenant_id === s.target_tenant_id);
+                  const isCurrentActive = currentActiveSessionId === s.session_id;
+
+                  // 1. Enter Workspace disabled until ACTIVE and not expired
+                  const isApproved = s.status === "ACTIVE";
+                  const isExpired = s.expires_at ? new Date(s.expires_at).getTime() <= now : false;
+                  const canEnter = isApproved && !isExpired;
+
+                  // 2. Strict Dual Control: Revoke can ONLY be performed by a PEER operator who did NOT request it
+                  const isRequester = user?.sub === s.requested_by || user?.userId === s.requested_by;
+                  const canRevoke = !isRequester;
+
+                  return (
+                    <tr key={s.session_id}>
+                      <td className="p-3 font-mono text-slate-300">
+                        {matchedTenant ? matchedTenant.name : `${s.target_tenant_id.slice(0, 8)}...`}
+                      </td>
+                      <td className="p-3 font-bold text-slate-100">{s.ticket_ref}</td>
+                      <td className="p-3 font-mono text-amber-400 font-semibold">
+                        {formatCountdown(s.expires_at)}
+                      </td>
+                      <td className="p-3 text-right">
+                        {isCurrentActive ? (
+                          <button
+                            type="button"
+                            onClick={handleExitSession}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-950/60 border border-amber-600 text-amber-300 text-xs rounded-lg hover:bg-amber-900 cursor-pointer"
+                          >
+                            <LogOut size={12} />
+                            <span>Exit Session</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={!canEnter}
+                            onClick={() => handleEnterSession(s)}
+                            title={
+                              !isApproved
+                                ? "Disabled: Awaiting peer operator approval."
+                                : isExpired
+                                ? "Disabled: Session has expired."
+                                : "Enter elevated workspace"
+                            }
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              canEnter
+                                ? "bg-emerald-700 hover:bg-emerald-600 text-white cursor-pointer shadow-sm"
+                                : "bg-slate-800/80 border border-slate-700 text-slate-500 cursor-not-allowed opacity-60"
+                            }`}
+                          >
+                            <LogIn size={12} />
+                            <span>Enter Workspace</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          type="button"
+                          disabled={!canRevoke}
+                          onClick={() => setRevokeSessionId(s.session_id)}
+                          title={
+                            canRevoke
+                              ? "Revoke peer emergency session"
+                              : "Dual-control policy: You cannot revoke a break-glass session you requested. A peer operator must revoke it."
+                          }
+                          className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+                            canRevoke
+                              ? "bg-rose-950/60 border border-rose-800 text-rose-400 hover:bg-rose-900 cursor-pointer shadow-sm"
+                              : "bg-slate-900/60 border border-slate-800 text-slate-600 cursor-not-allowed opacity-40"
+                          }`}
+                        >
+                          Revoke
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {activeSessions.length === 0 && (
+              <div className="text-center text-slate-500 text-xs py-4">No active emergency sessions.</div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* Global Tenant Registry */}
+      <section className="p-6 bg-surface border border-border rounded-2xl space-y-4 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-heading font-semibold text-slate-100 flex items-center gap-2">
+              <Terminal size={18} className="text-brand-orange" />
+              <span>Global Tenant Registry</span>
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Inspect active corporate tenants across the platform or select one for break-glass elevation.
+            </p>
+          </div>
+          <button
+            onClick={loadTenants}
+            disabled={tenantsLoading}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-surface-raised border border-border text-xs text-slate-300 font-semibold rounded-xl hover:border-brand-orange transition cursor-pointer"
+          >
+            <Activity size={14} className={tenantsLoading ? "animate-spin text-brand-orange" : ""} />
+            <span>{tenantsLoading ? "Refreshing..." : "Refresh Registry"}</span>
+          </button>
+        </div>
+
+        <div className="overflow-x-auto border border-border rounded-xl">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-surface-raised/60 font-mono text-slate-400">
+              <tr>
+                <th className="p-3">Tenant Name</th>
+                <th className="p-3">Tenant ID</th>
+                <th className="p-3">Plan</th>
+                <th className="p-3">Status</th>
+                <th className="p-3">Created</th>
+                <th className="p-3 text-right">Quick Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {tenants.map((t) => (
+                <tr key={t.tenant_id} className="hover:bg-surface-raised/40 transition-colors">
+                  <td className="p-3 font-semibold text-slate-200">{t.name}</td>
+                  <td className="p-3 font-mono text-slate-400">{t.tenant_id}</td>
+                  <td className="p-3 text-slate-300">{t.plan}</td>
+                  <td className="p-3 text-emerald-400 font-mono">{t.status}</td>
+                  <td className="p-3 text-slate-500 font-mono">{new Date(t.created_at).toLocaleDateString()}</td>
+                  <td className="p-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTenantFromTable(t.tenant_id)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-brand-orange/40 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20 text-[11px] font-semibold transition cursor-pointer"
+                    >
+                      <ArrowDownCircle size={12} />
+                      <span>Select</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {tenants.length === 0 && !tenantsLoading && (
+            <div className="p-8 text-center text-slate-500 text-xs">
+              No tenants loaded yet. Click "Refresh Registry" above.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Revocation Confirm Modal */}
+      {revokeSessionId && (
+        <ConfirmModal
+          isOpen={true}
+          title="Revoke Break-Glass Elevation"
+          description="Are you sure you want to terminate this emergency operator session? Immediate revocation is logged."
+          confirmText="Revoke Access"
+          variant="danger"
+          isLoading={revoking}
+          onConfirm={handleRevokeConfirm}
+          onClose={() => {
+            setRevokeSessionId(null);
+            setRevokeReason("");
+          }}
+        >
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Revocation Reason (min 5 characters) *
+            </label>
+            <input
+              type="text"
+              required
+              minLength={5}
+              value={revokeReason}
+              onChange={(e) => setRevokeReason(e.target.value)}
+              placeholder="Incident resolved or ticket closed..."
+              className="w-full px-3 py-2 bg-surface-raised border border-border rounded-xl text-sm text-slate-200 focus:outline-none focus:border-brand-orange"
+            />
+          </div>
+        </ConfirmModal>
+      )}
     </div>
   );
 }

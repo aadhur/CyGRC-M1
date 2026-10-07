@@ -5,19 +5,21 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CyGRC",
-  description: "Cybersecurity Governance, Risk and Compliance Platform",
+  description: "Enterprise Continuous Compliance and Risk Platform",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="bg-background text-slate-100 min-h-screen">
         <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

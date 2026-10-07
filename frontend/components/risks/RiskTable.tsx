@@ -1,14 +1,21 @@
-"use strict";
+"use client";
 
 import React from "react";
+import Link from "next/link";
+import { getScoreBadge, RISK_STATUS_STYLES } from "@/lib/design/status";
+import { ArrowRight } from "lucide-react";
 
-interface Risk {
-  id: string;
+export interface Risk {
+  risk_id?: string;
+  id?: string;
   title: string;
   likelihood: number;
   impact: number;
+  inherent_score?: number;
   status: string;
-  linkedControlsCount: number;
+  treatment?: string | null;
+  control_ids?: string[];
+  linkedControlsCount?: number;
 }
 
 interface RiskTableProps {
@@ -16,65 +23,75 @@ interface RiskTableProps {
 }
 
 export default function RiskTable({ risks }: RiskTableProps) {
-  
-  const getInherentScoreBadge = (score: number) => {
-    if (score <= 7) {
-      return (
-        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-          Low ({score})
-        </span>
-      );
-    } else if (score >= 8 && score <= 15) {
-      return (
-        <span className="inline-flex items-center rounded-full bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-          Medium ({score})
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">
-          High/Critical ({score})
-        </span>
-      );
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const formatted = status.toUpperCase();
-    if (formatted === "OPEN" || formatted === "ACTIVE") {
-      return <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">{status}</span>;
-    }
-    return <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium">{status}</span>;
-  };
-
   return (
-    <div className="rounded-md border bg-card text-card-foreground shadow-sm overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-lg">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left border-collapse">
-          <thead className="bg-muted/50 text-muted-foreground font-medium border-b text-xs uppercase tracking-wider">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-surface-raised/60 text-xs font-mono uppercase text-slate-400 border-b border-border">
             <tr>
-              <th className="p-4">Title</th>
-              <th className="p-4 text-center">Likelihood</th>
-              <th className="p-4 text-center">Impact</th>
-              <th className="p-4 text-center">Inherent Score</th>
-              <th className="p-4 text-center">Status</th>
-              <th className="p-4 text-center">Linked Controls</th>
+              <th className="px-6 py-4">Risk</th>
+              <th className="px-6 py-4 text-center">Inherent Score</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4 text-center">Linked Controls</th>
+              <th className="px-6 py-4 text-right">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {risks.map((risk) => {
-              const inherentScore = risk.likelihood * risk.impact;
+              const id = risk.risk_id || risk.id || "";
+              const inherentScore = risk.inherent_score ?? risk.likelihood * risk.impact;
+              const badge = getScoreBadge(inherentScore);
+              const count = risk.control_ids ? risk.control_ids.length : risk.linkedControlsCount || 0;
+
               return (
-                <tr key={risk.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="p-4 font-medium max-w-xs truncate">{risk.title}</td>
-                  <td className="p-4 text-center">{risk.likelihood}</td>
-                  <td className="p-4 text-center">{risk.impact}</td>
-                  <td className="p-4 text-center">{getInherentScoreBadge(inherentScore)}</td>
-                  <td className="p-4 text-center">{getStatusBadge(risk.status)}</td>
-                  <td className="p-4 text-center">
-                    <span className="inline-flex items-center justify-center bg-secondary text-secondary-foreground text-xs px-2.5 py-0.5 rounded-full font-mono">
-                      {risk.linkedControlsCount || 0}
+                <tr
+                  key={id}
+                  className="hover:bg-surface-raised/40 transition-colors group cursor-pointer"
+                >
+                  <td className="px-6 py-4">
+                    <Link href={`/risks/${id}`} className="block">
+                      <span className="font-semibold text-slate-200 group-hover:text-brand-orange transition-colors">
+                        {risk.title}
+                      </span>
+                      <div className="text-xs font-mono text-slate-500 mt-0.5">
+                        Likelihood {risk.likelihood} × Impact {risk.impact} {risk.treatment ? `· ${risk.treatment}` : ""}
+                      </div>
+                    </Link>
+                  </td>
+
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium tracking-wide ${badge.className}`}>
+                      {inherentScore} — {badge.label}
                     </span>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium tracking-wide ${RISK_STATUS_STYLES[risk.status?.toUpperCase()] || "bg-slate-800 text-slate-300 border border-slate-700"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        risk.status?.toUpperCase() === "CLOSED"
+                          ? "bg-emerald-400"
+                          : risk.status?.toUpperCase() === "TREATING"
+                          ? "bg-amber-400"
+                          : risk.status?.toUpperCase() === "ACCEPTED"
+                          ? "bg-purple-400"
+                          : "bg-blue-400"
+                      }`} />
+                      {risk.status?.toUpperCase() === "OPEN" ? "Open" : risk.status}
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4 text-center text-xs font-mono text-slate-400">
+                    {count} 
+                  </td>
+
+                  <td className="px-6 py-4 text-right">
+                    <Link
+                      href={`/risks/${id}`}
+                      className="inline-flex items-center gap-1 text-xs text-slate-400 group-hover:text-brand-orange transition-colors"
+                    >
+                      <span>View</span>
+                      <ArrowRight size={14} />
+                    </Link>
                   </td>
                 </tr>
               );
@@ -85,3 +102,5 @@ export default function RiskTable({ risks }: RiskTableProps) {
     </div>
   );
 }
+
+export { RiskTable };

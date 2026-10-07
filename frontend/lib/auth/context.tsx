@@ -4,22 +4,22 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 
-import {
-  hasAllScopes,
-  type Scope,
-} from "./permissions";
+import { hasAllScopes, hasAnyScope, Scope } from "./permissions";
 
 type AuthUser = {
+  userId?: string;
   sub?: string;
   email?: string;
   name?: string;
   preferred_username?: string;
   tenant_id?: string;
+  tenantId?: string;
   roles?: string[];
   scopes?: string[];
 };
@@ -32,16 +32,23 @@ type AuthContextValue = {
   scopes: string[];
   roles: string[];
   tenantId: string | null;
-  can: (requiredScopes: Scope[]) => boolean;
-  canAny: (scopes: Scope[]) => boolean;
-  setSessionToken: (
-    accessToken: string,
-    refreshToken?: string | null,
-  ) => void;
+  can: (requiredScopes: (Scope | string)[]) => boolean;
+  canAny: (scopes: (Scope | string)[]) => boolean;
+  setSessionToken: (accessToken: string, refreshToken?: string | null) => void;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const BREAK_GLASS_SCOPES = [
+  "controls:read",
+  "evidence:read",
+  "risks:read",
+  "audits:read",
+  "auditlog:read",
+  "dpdp:read",
+  "frameworks:read",
+];
 
 const ROLE_SCOPES: Record<string, string[]> = {
   PLATFORM_OPERATOR: [
@@ -50,7 +57,6 @@ const ROLE_SCOPES: Record<string, string[]> = {
     "frameworks:read",
     "frameworks:write",
   ],
-
   TENANT_ADMIN: [
     "controls:read",
     "controls:write",
@@ -73,7 +79,6 @@ const ROLE_SCOPES: Record<string, string[]> = {
     "ai:draft",
     "ai:approve",
   ],
-
   COMPLIANCE_MANAGER: [
     "controls:read",
     "controls:write",
@@ -85,7 +90,6 @@ const ROLE_SCOPES: Record<string, string[]> = {
     "ai:draft",
     "ai:approve",
   ],
-
   INTERNAL_AUDITOR: [
     "controls:read",
     "evidence:read",
@@ -94,7 +98,6 @@ const ROLE_SCOPES: Record<string, string[]> = {
     "audits:export",
     "frameworks:read",
   ],
-
   RISK_OWNER: [
     "controls:read",
     "risks:read",
@@ -103,7 +106,6 @@ const ROLE_SCOPES: Record<string, string[]> = {
     "risks:close",
     "frameworks:read",
   ],
-
   CISO: [
     "evidence:review",
     "evidence:read",
@@ -116,19 +118,16 @@ const ROLE_SCOPES: Record<string, string[]> = {
     "frameworks:read",
     "risks:close",
   ],
-
   DPO: [
     "dpdp:read",
     "dpdp:write",
     "controls:read",
     "ai:draft",
   ],
-
   ENGINEERING_LEAD: [
     "controls:read",
     "evidence:write",
   ],
-
   USER: [
     "controls:read",
     "evidence:write",
@@ -136,56 +135,59 @@ const ROLE_SCOPES: Record<string, string[]> = {
 };
 
 function getCookie(name: string): string | null {
-  if (typeof document === "undefined") {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function decodeAccessToken(): string | null {
+  return getCookie("cygrc_access_token") ?? getCookie("access_token");
+}
+
+function getActiveBreakGlass(): { sessionId: string; tenantId: string; expiresAt: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw =
+      sessionStorage.getItem("cygrc_break_glass_session") ||
+      localStorage.getItem("cygrc_break_glass_session");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.sessionId || !parsed.tenantId) return null;
+    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() < Date.now()) {
+      sessionStorage.removeItem("cygrc_break_glass_session");
+      localStorage.removeItem("cygrc_break_glass_session");
+      return null;
+    }
+    return parsed;
+  } catch {
     return null;
   }
-
-  const match = document.cookie.match(
-    new RegExp("(^|;\\s*)" + name + "=([^;]*)"),
-  );
-
-  return match ? decodeURIComponent(match[2]) : null;
 }
 
 function decodeToken(token: string): AuthUser | null {
   try {
     const payload = token.split(".")[1];
-
-    if (!payload) {
-      return null;
-    }
+    if (!payload) return null;
 
     const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(
-      base64.length + ((4 - (base64.length % 4)) % 4),
-      "=",
-    );
-
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
     const decoded = JSON.parse(atob(padded));
 
-    const roles: string[] =
-      decoded.roles ?? decoded.realm_access?.roles ?? [];
-
+    const roles: string[] = decoded.roles ?? decoded.realm_access?.roles ?? [];
     const tokenScopes: string[] =
-      decoded.scopes ??
-      (typeof decoded.scope === "string"
-        ? decoded.scope.split(" ")
-        : []);
+      decoded.scopes ?? (typeof decoded.scope === "string" ? decoded.scope.split(" ") : []);
 
-    const roleScopes = roles.flatMap(
-      (role) => ROLE_SCOPES[String(role).toUpperCase()] ?? [],
-    );
-
-    const scopes = Array.from(
-      new Set([...tokenScopes, ...roleScopes]),
-    );
+    const roleScopes = roles.flatMap((role) => ROLE_SCOPES[String(role).toUpperCase()] ?? []);
+    const scopes = Array.from(new Set([...tokenScopes, ...roleScopes]));
 
     return {
+      userId: decoded.sub,
       sub: decoded.sub,
       email: decoded.email,
       name: decoded.name,
       preferred_username: decoded.preferred_username,
       tenant_id: decoded.tenant_id,
+      tenantId: decoded.tenant_id,
       roles,
       scopes,
     };
@@ -194,94 +196,119 @@ function decodeToken(token: string): AuthUser | null {
   }
 }
 
-function decodeAccessToken(): string | null {
-  return getCookie("cygrc_access_token") ?? getCookie("access_token");
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const initialToken =
-    typeof document !== "undefined" ? decodeAccessToken() : null;
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [bgSession, setBgSession] = useState<{ sessionId: string; tenantId: string; expiresAt: string } | null>(null);
 
-  const [token, setToken] = useState<string | null>(initialToken);
-  const [user, setUser] = useState<AuthUser | null>(
-    initialToken ? decodeToken(initialToken) : null,
-  );
+  const checkBreakGlass = useCallback(() => {
+    setBgSession(getActiveBreakGlass());
+  }, []);
 
-  const setSessionToken = useCallback(
-    (accessToken: string, refreshToken?: string | null) => {
-      setToken(accessToken);
-      setUser(decodeToken(accessToken));
+  useEffect(() => {
+    const existing = decodeAccessToken();
+    if (existing) {
+      setToken(existing);
+      setUser(decodeToken(existing));
+    }
+    checkBreakGlass();
+    setIsLoading(false);
 
-      if (typeof document !== "undefined") {
-        const encodedAccessToken = encodeURIComponent(accessToken);
+    window.addEventListener("storage", checkBreakGlass);
+    window.addEventListener("cygrc:break-glass-change", checkBreakGlass);
+    return () => {
+      window.removeEventListener("storage", checkBreakGlass);
+      window.removeEventListener("cygrc:break-glass-change", checkBreakGlass);
+    };
+  }, [checkBreakGlass]);
 
-        document.cookie = `cygrc_access_token=${encodedAccessToken}; Path=/; Max-Age=900; SameSite=Lax`;
-        document.cookie = `access_token=${encodedAccessToken}; Path=/; Max-Age=900; SameSite=Lax`;
+  const setSessionToken = useCallback((accessToken: string, refreshToken?: string | null) => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("cygrc_break_glass_session");
+      localStorage.removeItem("cygrc_break_glass_session");
+    }
 
-        if (refreshToken) {
-          const encodedRefreshToken = encodeURIComponent(refreshToken);
+    setToken(accessToken);
+    setUser(decodeToken(accessToken));
+    setIsLoading(false);
 
-          document.cookie = `cygrc_refresh_token=${encodedRefreshToken}; Path=/; Max-Age=604800; SameSite=Lax`;
-          document.cookie = `refresh_token=${encodedRefreshToken}; Path=/; Max-Age=604800; SameSite=Lax`;
-        }
+    if (typeof document !== "undefined") {
+      const encodedAccessToken = encodeURIComponent(accessToken);
+      document.cookie = `cygrc_access_token=${encodedAccessToken}; Path=/; Max-Age=900; SameSite=Lax`;
+      document.cookie = `access_token=${encodedAccessToken}; Path=/; Max-Age=900; SameSite=Lax`;
+
+      if (refreshToken) {
+        const encodedRefreshToken = encodeURIComponent(refreshToken);
+        document.cookie = `cygrc_refresh_token=${encodedRefreshToken}; Path=/; Max-Age=2592000; SameSite=Lax`;
+        document.cookie = `refresh_token=${encodedRefreshToken}; Path=/; Max-Age=2592000; SameSite=Lax`;
       }
-    },
-    [],
-  );
+    }
+  }, []);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
 
     if (typeof document !== "undefined") {
-      document.cookie =
-        "cygrc_access_token=; Path=/; Max-Age=0; SameSite=Lax";
-      document.cookie =
-        "access_token=; Path=/; Max-Age=0; SameSite=Lax";
-      document.cookie =
-        "cygrc_refresh_token=; Path=/; Max-Age=0; SameSite=Lax";
-      document.cookie =
-        "refresh_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "cygrc_access_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "access_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "cygrc_refresh_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "refresh_token=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "cygrc_id_token=; Path=/; Max-Age=0; SameSite=Lax";
     }
 
     if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      sessionStorage.removeItem("cygrc_break_glass_session");
+      localStorage.removeItem("cygrc_break_glass_session");
+      window.location.href = "/auth/logout";
     }
   }, []);
 
   const value = useMemo<AuthContextValue>(() => {
-    const scopes = user?.scopes ?? [];
+    let scopes = user?.scopes ?? [];
     const roles = user?.roles ?? [];
+    let tenantId = user?.tenant_id ?? user?.tenantId ?? null;
+
+    // Platform Operator only gets customer tenant read scopes IF break-glass is actively active
+    const isOperator =
+      roles.some((r) => r.toUpperCase() === "PLATFORM_OPERATOR") ||
+      scopes.includes("operator:break-glass");
+
+    if (bgSession && isOperator) {
+      tenantId = bgSession.tenantId;
+      scopes = Array.from(new Set([...scopes, ...BREAK_GLASS_SCOPES]));
+    }
 
     return {
-      user,
+      user: user
+        ? {
+            ...user,
+            tenant_id: tenantId ?? undefined,
+            tenantId: tenantId ?? undefined,
+            scopes,
+          }
+        : null,
       token,
       isAuthenticated: Boolean(user && token),
-      isLoading: false,
+      isLoading,
       scopes,
       roles,
-      tenantId: user?.tenant_id ?? null,
-      can: (requiredScopes) => hasAllScopes(scopes, requiredScopes),
-      canAny: (requiredScopes) =>
-        requiredScopes.some((scope) => scopes.includes(scope)),
+      tenantId,
+      can: (requiredScopes) => hasAllScopes(scopes, requiredScopes as Scope[]),
+      canAny: (requiredScopes) => hasAnyScope(scopes, requiredScopes as Scope[]),
       setSessionToken,
       logout,
     };
-  }, [user, token, setSessionToken, logout]);
+  }, [user, token, isLoading, bgSession, setSessionToken, logout]);
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-
   if (!context) {
     throw new Error("useAuth must be used inside AuthProvider");
   }
-
   return context;
 }

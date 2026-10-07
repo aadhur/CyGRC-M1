@@ -65,9 +65,9 @@ class FindingCreate(BaseModel):
     control_id: UUID
     severity: FindingSeverityEnum
     description: str
-    recommendation: str
-    owner: UUID
-    due_date: datetime
+    recommendation: str | None = None
+    owner: UUID | None = None
+    due_date: datetime | None = None
 
 
 class FindingUpdate(BaseModel):

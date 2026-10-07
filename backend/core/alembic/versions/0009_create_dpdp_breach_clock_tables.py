@@ -56,7 +56,7 @@ def upgrade() -> None:
             server_default="INACTIVE",
         ),
         sa.Column(
-            "notified_at",
+            "resolved_at",
             sa.DateTime(timezone=True),
             nullable=True,
         ),

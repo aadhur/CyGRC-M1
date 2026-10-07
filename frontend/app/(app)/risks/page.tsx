@@ -1,140 +1,102 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth/context";
+import { api } from "@/lib/api/client";
+import { ForbiddenState } from "@/components/ForbiddenState";
 import RiskTable from "@/components/risks/RiskTable";
 import RiskCreateModal from "@/components/risks/RiskCreateModal";
-import { apiFetch } from "@/lib/api/client";
+import { Plus, ShieldAlert, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
-// Replace this with your project's actual path to useAuth if it differs
-import { useAuth } from "@/lib/auth/context";
-import { type Scope } from "@/lib/auth/permissions";
+export default function RiskRegisterPage() {
+  const { can } = useAuth();
+  const [createOpen, setCreateOpen] = useState(false);
 
-interface Risk {
-  id: string;
-  title: string;
-  description: string;
-  likelihood: number;
-  impact: number;
-  inherentScore: number;
-  status: string;
-  treatment: string;
-  treatmentPlan: string;
-  targetCloseDate: string;
-  linkedControlsCount: number;
-}
+  const canRead = can(["risks:read"]);
+  const canWrite = can(["risks:write"]);
 
-export default function RisksPage() {
-  // Gracefully fallback if hook return values are temporarily undefined during loading
-  const authContext = useAuth();
-  const hasPermission = (scope: Scope) => authContext.can([scope]);
-  const authLoading = authContext.isLoading;
+  const risksQuery = useQuery({
+    queryKey: ["risks"],
+    queryFn: () => api.get<any[]>("/v1/risks"),
+    enabled: canRead,
+  });
 
-  const [risks, setRisks] = useState<Risk[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
-
-  const canRead = hasPermission ? hasPermission("risks:read") : true; 
-  const canWrite = hasPermission ? hasPermission("risks:write") : true;
-
-  const fetchRisks = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const data = await apiFetch<Risk[]>("/v1/risks");
-      setRisks(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (canRead && !authLoading) {
-      fetchRisks();
-    }
-  }, [canRead, authLoading]);
-
-  if (authLoading || (isLoading && risks.length === 0 && !error)) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        <span className="ml-2 text-sm text-muted-foreground">Loading Risk Register...</span>
-      </div>
-    );
-  }
+  const risks = (risksQuery.data ?? []).map((r) => ({
+    ...r,
+    id: r.risk_id || r.id,
+    linkedControlsCount: r.control_ids ? r.control_ids.length : r.linkedControlsCount || 0,
+  }));
 
   if (!canRead) {
-    return (
-      <div className="p-6 text-center border rounded-lg bg-destructive/5 border-destructive/20 max-w-2xl mx-auto mt-12">
-        <h2 className="text-lg font-semibold text-destructive">403 - Access Denied</h2>
-        <p className="text-sm text-muted-foreground mt-1">You do not have the required permissions (`risks:read`) to view the Risk Register.</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 text-center border rounded-lg bg-destructive/5 border-destructive/20 max-w-2xl mx-auto mt-12">
-        <h2 className="text-lg font-semibold text-destructive">Error Loading Risks</h2>
-        <p className="text-sm text-muted-foreground mt-1">{error}</p>
-        <button onClick={fetchRisks} className="mt-4 px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition">
-          Retry Connection
-        </button>
-      </div>
-    );
+    return <ForbiddenState message="You do not possess permission to view the Risk Register." />;
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between border-b pb-4">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Risk Register</h1>
-          <p className="text-sm text-muted-foreground">Identify, evaluate, and monitor organization risks and treatments.</p>
+          <p className="text-xs font-mono font-semibold tracking-wider text-brand-orange uppercase">
+            ENTERPRISE RISK GOVERNANCE
+          </p>
+          <h1 className="text-2xl font-heading font-bold text-slate-100 mt-1">
+            Risk Register
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Track inherent risk ratings, mitigation plans, and linked security controls.
+          </p>
         </div>
+
         {canWrite && (
           <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2"
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-semibold rounded-xl shadow transition-colors cursor-pointer"
           >
-            New Risk
+            <Plus size={16} />
+            <span>New Risk</span>
           </button>
         )}
       </div>
 
-      {risks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-12 text-center bg-muted/10">
-          <div className="text-muted-foreground text-4xl mb-2">⚠️</div>
-          <h3 className="font-semibold text-lg">No Risks Found</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mt-1">
-            Your risk profile is currently empty. Get started by identifying and document your first organizational risk.
-          </p>
-          {canWrite && (
+      <section>
+        {risksQuery.isLoading ? (
+          <div className="p-16 flex items-center justify-center text-slate-400 gap-2 bg-surface border border-border rounded-2xl">
+            <Loader2 size={20} className="animate-spin text-brand-orange" />
+            <span>Loading risk register...</span>
+          </div>
+        ) : risksQuery.isError ? (
+          <div className="p-12 text-center bg-surface border border-rose-900/50 rounded-2xl space-y-3">
+            <AlertCircle size={28} className="mx-auto text-rose-400" />
+            <div className="text-sm font-semibold text-rose-200">
+              {risksQuery.error instanceof Error ? risksQuery.error.message : "Unable to load risks."}
+            </div>
             <button
-              onClick={() => setIsCreateOpen(true)}
-              className="mt-4 inline-flex items-center text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 h-8 px-3 rounded-md transition"
+              onClick={() => risksQuery.refetch()}
+              disabled={risksQuery.isFetching}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-raised border border-border hover:border-brand-orange text-xs text-slate-300 font-semibold rounded-xl transition cursor-pointer"
             >
-              Add First Risk
+              <RefreshCw size={12} className={risksQuery.isFetching ? "animate-spin text-brand-orange" : ""} />
+              <span>Retry</span>
             </button>
-          )}
-        </div>
-      ) : (
-        <RiskTable risks={risks} />
-      )}
+          </div>
+        ) : risks.length === 0 ? (
+          <div className="p-16 text-center bg-surface border border-border rounded-2xl space-y-2">
+            <ShieldAlert size={28} className="mx-auto text-slate-500" />
+            <div className="text-base font-semibold text-slate-200">No risks registered</div>
+            <div className="text-xs text-slate-400">Click &quot;New Risk&quot; above to document a risk exposure.</div>
+          </div>
+        ) : (
+          <RiskTable risks={risks} />
+        )}
+      </section>
 
-      {isCreateOpen && (
+      {canWrite && (
         <RiskCreateModal
-          isOpen={isCreateOpen}
-          onClose={() => setIsCreateOpen(false)}
-          onSuccess={() => {
-            setIsCreateOpen(false);
-            fetchRisks();
-          }}
+          isOpen={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onSuccess={() => risksQuery.refetch()}
         />
       )}
     </div>
   );
 }
-

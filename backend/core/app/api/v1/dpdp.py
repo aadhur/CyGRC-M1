@@ -15,50 +15,13 @@ class BreachClockResponse(BaseModel):
     status: BreachClockStatus
     started_at: datetime | None
     acknowledged_by: UUID | None
-    notified_at: datetime | None
     deadline: datetime | None
-    resolved_at: datetime | None
-    elapsed_seconds: int | None
+    resolved_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 router = APIRouter()
-
-
-def build_response(clock: DpdpBreachClock | None) -> BreachClockResponse:
-    if clock is None:
-        return BreachClockResponse(
-            status=BreachClockStatus.INACTIVE,
-            started_at=None,
-            acknowledged_by=None,
-            notified_at=None,
-            deadline=None,
-            resolved_at=None,
-            elapsed_seconds=None,
-        )
-
-    deadline = None
-    elapsed_seconds = None
-
-    if clock.started_at is not None:
-        deadline = clock.started_at + timedelta(hours=72)
-
-        end_time = clock.resolved_at or datetime.now(timezone.utc)
-        elapsed_seconds = max(
-            0,
-            int((end_time - clock.started_at).total_seconds()),
-        )
-
-    return BreachClockResponse(
-        status=clock.status,
-        started_at=clock.started_at,
-        acknowledged_by=clock.acknowledged_by,
-        notified_at=clock.notified_at,
-        deadline=deadline,
-        resolved_at=clock.resolved_at,
-        elapsed_seconds=elapsed_seconds,
-    )
 
 
 @router.get(
@@ -72,10 +35,47 @@ def build_response(clock: DpdpBreachClock | None) -> BreachClockResponse:
 async def get_breach_clock(
     db: AsyncSession = Depends(get_db),  # noqa: B008
 ):
-    result = await db.execute(select(DpdpBreachClock))
+    result = await db.execute(
+        select(DpdpBreachClock).where(
+            DpdpBreachClock.status == BreachClockStatus.ACTIVE
+        )
+    )
     clock = result.scalar_one_or_none()
 
-    return build_response(clock)
+    if clock is None:
+        # Check if there is a resolved clock
+        res_all = await db.execute(
+            select(DpdpBreachClock).order_by(DpdpBreachClock.started_at.desc())
+        )
+        latest = res_all.scalars().first()
+        if latest and latest.status == BreachClockStatus.RESOLVED:
+            return BreachClockResponse(
+                status=BreachClockStatus.RESOLVED,
+                started_at=latest.started_at,
+                acknowledged_by=latest.acknowledged_by,
+                deadline=None,
+                resolved_at=getattr(latest, "resolved_at", None),
+            )
+
+        return BreachClockResponse(
+            status=BreachClockStatus.INACTIVE,
+            started_at=None,
+            acknowledged_by=None,
+            deadline=None,
+            resolved_at=None,
+        )
+
+    deadline = None
+    if clock.started_at is not None:
+        deadline = clock.started_at + timedelta(hours=72)
+
+    return BreachClockResponse(
+        status=clock.status,
+        started_at=clock.started_at,
+        acknowledged_by=clock.acknowledged_by,
+        deadline=deadline,
+        resolved_at=getattr(clock, "resolved_at", None),
+    )
 
 
 @router.post(
@@ -110,21 +110,24 @@ async def start_breach_clock(
             started_at=now,
             acknowledged_by=user_id,
             status=BreachClockStatus.ACTIVE,
-            notified_at=None,
-            resolved_at=None,
         )
         db.add(clock)
     else:
         clock.started_at = now
         clock.acknowledged_by = user_id
         clock.status = BreachClockStatus.ACTIVE
-        clock.notified_at = None
-        clock.resolved_at = None
+        if hasattr(clock, "resolved_at"):
+            clock.resolved_at = None
 
     await db.commit()
-    await db.refresh(clock)
 
-    return build_response(clock)
+    return BreachClockResponse(
+        status=clock.status,
+        started_at=clock.started_at,
+        acknowledged_by=clock.acknowledged_by,
+        deadline=clock.started_at + timedelta(hours=72),
+        resolved_at=None,
+    )
 
 
 @router.post(
@@ -148,16 +151,17 @@ async def resolve_breach_clock(
             detail="No breach clock exists for this tenant.",
         )
 
-    if clock.status != BreachClockStatus.ACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="There is no active breach clock to resolve.",
-        )
-
+    now = datetime.now(timezone.utc)
     clock.status = BreachClockStatus.RESOLVED
-    clock.resolved_at = datetime.now(timezone.utc)
+    if hasattr(clock, "resolved_at"):
+        clock.resolved_at = now
 
     await db.commit()
-    await db.refresh(clock)
 
-    return build_response(clock)
+    return BreachClockResponse(
+        status=clock.status,
+        started_at=clock.started_at,
+        acknowledged_by=clock.acknowledged_by,
+        deadline=None,
+        resolved_at=getattr(clock, "resolved_at", now),
+    )

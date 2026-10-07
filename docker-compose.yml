@@ -92,6 +92,7 @@ services:
       sh -c "DATABASE_URL=postgresql+asyncpg://grc_user:grc_local_password_123@postgres:5432/grc_platform alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./backend/core/app:/app/app
+      - ./backend/core/tests:/app/tests 
     environment:
     
       - VALKEY_URL=redis://valkey:6379/0

@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-import { AppSidebar } from "@/components/AppSidebar";
-import { AppTopBar } from "@/components/AppTopbarTemp";
-import BreakGlassBanner from "@/components/BreakGlassBanner";
 import { useAuth } from "@/lib/auth/context";
+import { AppSidebar } from "@/components/AppSidebar";
+import { AppTopBar } from "@/components/AppTopbar";
+import { BreakGlassBanner } from "@/components/BreakGlassBanner";
 
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading, token } = useAuth();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
@@ -22,36 +21,30 @@ export default function AppLayout({
   }, []);
 
   useEffect(() => {
-    if (mounted && !isAuthenticated) {
+    // Only redirect if mounted, NOT loading, and definitely no token exists
+    if (mounted && !isLoading && !isAuthenticated && !token) {
       router.replace("/login");
     }
-  }, [mounted, isAuthenticated, router]);
+  }, [mounted, isLoading, isAuthenticated, token, router]);
 
-  // Server render and first client render are identical.
-  if (!mounted) {
+  // Keep showing the loader while auth initializes from cookies
+  if (!mounted || isLoading || (!isAuthenticated && token)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950">
-        <p className="text-sm text-slate-400">Loading CyGRC…</p>
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-xs font-mono text-slate-400">Loading CyGRC Workspace...</p>
       </main>
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <div className="flex min-h-screen bg-background text-slate-100">
       <AppSidebar />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AppTopBar />
-
+      <div className="flex-1 flex flex-col min-w-0">
         <BreakGlassBanner />
-
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
+        <AppTopBar />
+        <main className="flex-1 p-8 overflow-y-auto">{children}</main>
       </div>
     </div>
   );

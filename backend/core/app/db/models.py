@@ -922,10 +922,6 @@ class DpdpBreachClock(Base):
         nullable=False,
         default=BreachClockStatus.INACTIVE,
     )
-    notified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
     resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

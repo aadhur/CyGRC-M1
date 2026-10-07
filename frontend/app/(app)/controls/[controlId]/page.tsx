@@ -6,7 +6,9 @@ import { useAuth } from "@/lib/auth/context";
 import { apiFetch } from "@/lib/api/client";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EvidenceUploadModal } from "@/components/EvidenceUploadModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { AIDraftPanel } from "@/components/AIDraftPanel";
+import { ForbiddenState } from "@/components/ForbiddenState";
 import {
   UploadCloud,
   Check,
@@ -59,7 +61,6 @@ export default function ControlDetailPage({
   const [control, setControl] = useState<ControlDetail | null>(null);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
-
   const [ownerInput, setOwnerInput] = useState("");
   const [notesInput, setNotesInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -67,8 +68,6 @@ export default function ControlDetailPage({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Destructive reject confirmation state
   const [rejectEvidenceId, setRejectEvidenceId] = useState<string | null>(null);
 
   const fetchControlData = async () => {
@@ -121,7 +120,6 @@ export default function ControlDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ owner: ownerInput, notes: notesInput }),
       });
-
       const updatedAssignee = assignees.find((a) => a.user_id === ownerInput);
       if (control) {
         setControl({
@@ -152,7 +150,7 @@ export default function ControlDetailPage({
           ev.evidence_id === evidenceId ? { ...ev, review_status: decision } : ev
         )
       );
-      setToast(`Evidence decision recorded as ${decision}.`);
+      setToast(`Evidence marked as ${decision}.`);
       setTimeout(() => setToast(null), 3000);
     } catch (err: any) {
       setToast(err.message || "Review failed.");
@@ -164,6 +162,9 @@ export default function ControlDetailPage({
     evidenceList.find((e) => e.requirement_id)?.requirement_id ||
     "";
 
+  if (!can(["controls:read"])) {
+    return <ForbiddenState message="You do not possess permission to view controls." />;
+  }
 
   if (loading) {
     return (
@@ -174,9 +175,7 @@ export default function ControlDetailPage({
     );
   }
 
-  if (!control) {
-    return <div className="text-slate-400">Control not found.</div>;
-  }
+  if (!control) return <div className="text-slate-400">Control not found.</div>;
 
   return (
     <div className="space-y-6">
@@ -185,7 +184,7 @@ export default function ControlDetailPage({
           href="/controls"
           className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
         >
-          ← Back to controls
+          Back to controls
         </Link>
         {toast && (
           <div className="px-3 py-1.5 bg-brand-orange/20 border border-brand-orange/40 text-brand-orange rounded-xl text-xs flex items-center gap-2">
@@ -243,7 +242,6 @@ export default function ControlDetailPage({
               {control.description}
             </p>
 
-            {/* AI Drafting Panel */}
             <AIDraftPanel
               type="control"
               resourceId={control.control_id}
@@ -397,6 +395,20 @@ export default function ControlDetailPage({
         />
       )}
 
+      {rejectEvidenceId && (
+        <ConfirmModal
+          isOpen={true}
+          title="Reject Compliance Evidence"
+          description="Are you sure you want to reject this evidence artifact? This will prevent it from satisfying compliance verification and may cause the control to fail."
+          confirmText="Reject Evidence"
+          variant="danger"
+          onConfirm={async () => {
+            await handleReview(rejectEvidenceId, "REJECTED");
+            setRejectEvidenceId(null);
+          }}
+          onClose={() => setRejectEvidenceId(null)}
+        />
+      )}
     </div>
   );
 }
